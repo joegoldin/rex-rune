@@ -2385,7 +2385,7 @@ fn a_sidebar_tab_selects_its_session_and_focuses_its_window() {
 }
 
 #[test]
-fn views_are_prefetched_only_for_tabs_the_sidebar_lists() {
+fn views_are_prefetched_for_global_navigation_regardless_of_sidebar_visibility() {
     fn latest(rx: &flume::Receiver<HostCommand>) -> Option<Vec<String>> {
         rx.try_iter()
             .filter_map(|c| match c {
@@ -2403,20 +2403,20 @@ fn views_are_prefetched_only_for_tabs_the_sidebar_lists() {
     ws.hosts[0].model.sessions.push(session("other"));
     ws.toggle_sidebar();
     let mut rt = runtime(ws);
-    assert_eq!(latest(&rx), None, "Top tab position loads nothing");
+    assert_eq!(latest(&rx), all, "global navigation also needs hidden tabs");
     rt.update(|s, _| s.set_vertical_tabs(true));
-    assert_eq!(latest(&rx), all);
+    assert_eq!(latest(&rx), None, "eligibility is unchanged");
     for _ in 0..60 {
         rt.frame(1. / 60.);
     }
     click(&mut rt, "host-disclosure:0");
-    assert_eq!(latest(&rx), Some(vec![]), "a collapsed host loads nothing");
+    assert_eq!(latest(&rx), None, "collapsed hosts remain navigable");
     click(&mut rt, "host-disclosure:0");
-    assert_eq!(latest(&rx), all);
+    assert_eq!(latest(&rx), None, "eligibility is unchanged");
     ctrl_shift(&mut rt, 'b');
-    assert_eq!(latest(&rx), Some(vec![]), "nor does a closed sidebar");
+    assert_eq!(latest(&rx), None, "a closed sidebar remains navigable");
     ctrl_shift(&mut rt, 'b');
-    assert_eq!(latest(&rx), all);
+    assert_eq!(latest(&rx), None, "eligibility is unchanged");
     rt.update(|s, tx| {
         let mut model = s.hosts[0].model.clone();
         model.sessions.push(session("new"));
@@ -2426,10 +2426,14 @@ fn views_are_prefetched_only_for_tabs_the_sidebar_lists() {
     assert_eq!(
         latest(&rx),
         Some(vec!["new".into(), "other".into(), "s".into()]),
-        "a new session is listed, so it is loaded too"
+        "a new session is navigable, so it is loaded too"
     );
     rt.update(|s, _| s.set_vertical_tabs(false));
-    assert_eq!(latest(&rx), Some(vec![]));
+    assert_eq!(
+        latest(&rx),
+        None,
+        "tab position does not change eligibility"
+    );
     std::fs::remove_file(&rt.state.settings_path).ok();
 }
 
@@ -2614,4 +2618,151 @@ fn a_palette_round_trip_leaves_terminal_output_and_its_selection_alone() {
     assert_eq!(term.selection, Some((0, 4)), "the selection is intact");
     assert!(std::sync::Arc::ptr_eq(term.frame.as_ref().unwrap(), &frame));
     std::fs::remove_file(&rt.state.settings_path).ok();
+}
+
+#[test]
+fn ctrl_tab_wraps_and_rapid_navigation_uses_the_pending_tab() {
+    let (ws, rx) = tabbed_workspace("single");
+    let mut rt = runtime(ws);
+    let key = |shift| KeyEvent {
+        key: Key::Tab,
+        mods: Mods {
+            ctrl: true,
+            shift,
+            ..Mods::default()
+        },
+    };
+    rt.key(key(false));
+    rt.key(key(false)); // Before the server acknowledges the first switch.
+    rt.key(key(true));
+    rt.frame(1. / 60.);
+    let sent = requests(&rx);
+    assert_eq!(
+        sent.iter()
+            .map(|r| r.2["window_id"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["split", "single", "split"]
+    );
+    assert!(
+        sent.iter()
+            .all(|r| r.0 == "session.focus_window" && r.1 == "s")
+    );
+    rt.key(KeyEvent {
+        key: Key::PageUp,
+        mods: Mods {
+            ctrl: true,
+            ..Mods::default()
+        },
+    });
+    rt.frame(1. / 60.);
+    assert_eq!(requests(&rx)[0].2["window_id"], "single");
+    std::fs::remove_file(&rt.state.settings_path).ok();
+}
+
+#[test]
+fn mouse_back_and_forward_revisit_tabs_without_branching_history() {
+    let (mut ws, rx) = tabbed_workspace("single");
+    ws.observe_navigation();
+    ws.hosts[0]
+        .model
+        .views
+        .get_mut("s")
+        .unwrap()
+        .active_window_id = Some("split".into());
+    ws.observe_navigation();
+    let mut rt = runtime(ws);
+    rt.button_down(500., 300., rune::PointerButton::Back);
+    rt.button_up(500., 300., rune::PointerButton::Back);
+    rt.frame(1. / 60.);
+    let sent = requests(&rx);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].2["window_id"], "single");
+    rt.update(|s, _| {
+        s.hosts[0]
+            .model
+            .views
+            .get_mut("s")
+            .unwrap()
+            .active_window_id = Some("single".into());
+        s.observe_navigation();
+    });
+    rt.button_down(500., 300., rune::PointerButton::Forward);
+    rt.button_up(500., 300., rune::PointerButton::Forward);
+    rt.frame(1. / 60.);
+    assert_eq!(requests(&rx)[0].2["window_id"], "split");
+    std::fs::remove_file(&rt.state.settings_path).ok();
+}
+
+#[test]
+fn ctrl_tab_crosses_all_sessions_and_hosts_in_sidebar_order() {
+    let (seed, _rx) = tabbed_workspace("split");
+    let mut ws = workspace_hosts(3);
+    ws.hosts[0].model = seed.hosts[0].model.clone();
+    let mut t = ws.hosts[0].model.views["s"].clone();
+    t.session_id = Some("t".into());
+    t.active_window_id = Some("t1".into());
+    for (window, id) in t.windows.iter_mut().zip(["t1", "t2"]) {
+        window.window_id = Some(id.into());
+    }
+    ws.hosts[0].model.sessions.push(session("t"));
+    ws.hosts[0].model.views.insert("t".into(), t.clone());
+    ws.hosts[1].model.connected = true;
+    ws.hosts[1].model.selected = Some("u".into());
+    ws.hosts[1].model.sessions = vec![session("u")];
+    t.session_id = Some("u".into());
+    t.active_window_id = Some("u1".into());
+    for (window, id) in t.windows.iter_mut().zip(["u1", "u2"]) {
+        window.window_id = Some(id.into());
+    }
+    ws.hosts[1].model.views.insert("u".into(), t.clone());
+    // A disconnected host may retain an old view, but is not a navigable target.
+    ws.hosts[2].model.sessions = vec![session("u")];
+    ws.hosts[2].model.views.insert("u".into(), t);
+    let rx0 = capture_host(&mut ws, 0);
+    let rx1 = capture_host(&mut ws, 1);
+    let mut rt = runtime(ws);
+    for shift in [false, false, false, false, false, false, true, true] {
+        rt.key(KeyEvent {
+            key: Key::Tab,
+            mods: Mods {
+                ctrl: true,
+                shift,
+                ..Default::default()
+            },
+        });
+    }
+    rt.frame(1. / 60.);
+    assert_eq!(
+        requests(&rx0)
+            .iter()
+            .map(|r| (r.1.as_str(), r.2["window_id"].as_str().unwrap()))
+            .collect::<Vec<_>>(),
+        [
+            ("t", "t1"),
+            ("t", "t2"),
+            ("s", "single"),
+            ("s", "split"),
+            ("s", "single")
+        ]
+    );
+    assert_eq!(
+        requests(&rx1)
+            .iter()
+            .map(|r| (r.1.as_str(), r.2["window_id"].as_str().unwrap()))
+            .collect::<Vec<_>>(),
+        [("u", "u1"), ("u", "u2"), ("u", "u2")]
+    );
+    assert_eq!(rt.state.active, 1);
+    assert_eq!(
+        rt.state
+            .navigation
+            .pending
+            .as_ref()
+            .unwrap()
+            .window
+            .as_deref(),
+        Some("u2")
+    );
+    std::fs::remove_file(&rt.state.settings_path).ok();
+    std::fs::remove_file(&seed.settings_path).ok();
 }

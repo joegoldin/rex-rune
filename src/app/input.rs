@@ -86,6 +86,10 @@ pub fn zoom_key(s: &mut Workspace, ev: &KeyEvent, tx: &mut Tx) -> bool {
 /// Workspace shortcuts with no popup open. True when one ran.
 fn shortcut(s: &mut Workspace, ev: &KeyEvent, tx: &mut Tx) -> bool {
     let m = ev.mods;
+    if ctrl(ev) && !m.alt && ev.key == Key::Tab {
+        s.cycle_tab(if m.shift { -1 } else { 1 }, tx);
+        return true;
+    }
     if ctrl(ev) && m.shift && !m.alt {
         if letter(ev, tx, 'b') {
             s.perform(Intent::Sidebar, tx);
@@ -154,13 +158,8 @@ fn shortcut(s: &mut Workspace, ev: &KeyEvent, tx: &mut Tx) -> bool {
             _ => "down",
         };
         s.request("session.focus_direction", json!({"direction":direction}));
-    } else if ctrl(ev) && !m.shift && matches!(ev.key, Key::PageUp | Key::PageDown) {
-        let method = if ev.key == Key::PageUp {
-            "session.focus_previous_window"
-        } else {
-            "session.focus_next_window"
-        };
-        s.request(method, json!({}));
+    } else if ctrl(ev) && !m.shift && !m.alt && matches!(ev.key, Key::PageUp | Key::PageDown) {
+        s.cycle_session_tab(if ev.key == Key::PageUp { -1 } else { 1 });
     } else if m.shift && !ctrl(ev) && matches!(ev.key, Key::PageUp | Key::PageDown) {
         let lines = if ev.key == Key::PageUp { -20 } else { 20 };
         if let Some(term) = s.active_terminal_mut() {

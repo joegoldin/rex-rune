@@ -5,6 +5,7 @@ mod fonts;
 mod input;
 mod integrations;
 mod keys;
+mod navigation;
 mod notify;
 mod panel;
 mod panes;
@@ -84,6 +85,12 @@ pub(crate) fn view(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
     root = root.child(open.unwrap_or_else(popups::overlay));
     let mut window = el()
         .key("window")
+        .pointer_buttons([rune::PointerButton::Back, rune::PointerButton::Forward])
+        .on_press_tx(|s: &mut Workspace, tx: &mut Tx| match tx.button() {
+            rune::PointerButton::Back => s.navigate_history(-1, tx),
+            rune::PointerButton::Forward => s.navigate_history(1, tx),
+            _ => {}
+        })
         // With no focused control, Rune sends releases only to the outermost node.
         .on_key_up(input::on_key_up)
         .w_full()
