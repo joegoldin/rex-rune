@@ -70,6 +70,7 @@ pub struct Workspace {
     pub drag: Option<DividerDrag>,
     /// Physical keys whose press went to a terminal; only their releases follow.
     pub forwarded: HashSet<PhysicalKeyCode>,
+    pub navigation: super::navigation::History,
     /// Panes this window has taken size ownership of since it last came forward.
     pub claimed: HashSet<(HostId, String)>,
     pub handle: AppHandle<Workspace>,
@@ -189,6 +190,7 @@ impl Workspace {
             zoom_notice: None,
             drag: None,
             forwarded: HashSet::new(),
+            navigation: Default::default(),
             claimed: HashSet::new(),
             handle,
             window_focused: true,
@@ -414,6 +416,7 @@ impl Workspace {
         {
             tx.copy(copy.text);
         }
+        self.observe_navigation();
         self.track_activity(index);
         self.deliver_program_notices(index, notices);
         if self
@@ -631,17 +634,16 @@ impl Workspace {
         self.sync_prefetch();
     }
 
-    /// Ask each host for the views of the sessions whose tabs the sidebar lists: those of
-    /// expanded hosts, while the sidebar is open with Sidebar tab position.
+    /// Global tab navigation needs every session's tab order, even with a closed sidebar.
+    /// Use the host worker's paced background fetches, never attach hidden terminals.
     pub fn sync_prefetch(&mut self) {
-        let listing = self.sidebar_tabs();
         for index in 0..self.hosts.len() {
-            let wanted: HashSet<String> = if listing && !self.settings.hosts[index].collapsed {
-                let sessions = &self.hosts[index].model.sessions;
-                sessions.iter().map(|s| s.session_id.clone()).collect()
-            } else {
-                HashSet::new()
-            };
+            let wanted: HashSet<String> = self.hosts[index]
+                .model
+                .sessions
+                .iter()
+                .map(|s| s.session_id.clone())
+                .collect();
             if wanted != self.hosts[index].prefetch {
                 self.hosts[index].prefetch = wanted.clone();
                 self.send(index, HostCommand::PrefetchViews(wanted));
@@ -676,6 +678,16 @@ impl Workspace {
         let Some(session) = self.model().selected.clone() else {
             return;
         };
+        if method == "session.focus_window"
+            && let Some(window) = payload["window_id"].as_str()
+        {
+            self.observe_navigation();
+            self.navigation.pending = Some(super::navigation::Visit {
+                host: self.hosts[self.active].id,
+                session: session.clone(),
+                window: Some(window.into()),
+            });
+        }
         payload["session_id"] = json!(session);
         self.send(
             self.active,
@@ -795,20 +807,17 @@ impl Workspace {
     }
 
     pub fn select(&mut self, host: usize, id: String, tx: &mut Tx) {
-        self.active = host;
-        self.drag = None;
-        self.update_visibility();
-        self.settings.hosts[host].collapsed = false;
-        self.send(host, HostCommand::Select(id));
-        self.save();
-        self.update_title(tx);
+        self.select_visit(host, id, tx);
     }
 
     pub fn activate_host(&mut self, host: usize, tx: &mut Tx) {
+        self.observe_navigation();
+        self.navigation.pending = None;
         self.settings.hosts[host].collapsed = false;
         self.active = host;
         self.drag = None;
         self.update_visibility();
+        self.observe_navigation();
         self.save();
         self.update_title(tx);
     }
@@ -823,26 +832,16 @@ impl Workspace {
     }
 
     pub fn select_window(&mut self, host: usize, session: String, window: String, tx: &mut Tx) {
-        self.active = host;
-        self.drag = None;
-        self.settings.hosts[host].collapsed = false;
-        self.update_visibility();
-        if self.hosts[host].model.selected.as_ref() != Some(&session) {
-            self.send(host, HostCommand::Select(session.clone()));
-        }
-        self.send(
-            host,
-            HostCommand::Request {
-                method: "session.focus_window".into(),
-                payload: json!({"session_id": session, "window_id": window}),
+        self.navigate_to(
+            super::navigation::Visit {
+                host: self.hosts[host].id,
+                session,
+                window: Some(window),
             },
+            tx,
         );
-        self.save();
-        self.update_title(tx);
     }
 
-    /// Tabs are listed in the sidebar instead of the toolbar: Sidebar tab position, and
-    /// only while the sidebar is open.
     pub fn sidebar_tabs(&self) -> bool {
         self.settings.vertical_tabs && self.sidebar.is_open()
     }
