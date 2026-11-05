@@ -15,6 +15,9 @@ pub struct Host {
     /// user's login shell.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shell: Option<String>,
+    /// SSH alias or user@host on the same machine/account as this Rex endpoint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_ssh_target: Option<String>,
 }
 
 /// The window corner in-app notices stack in.
@@ -161,6 +164,7 @@ impl Default for Settings {
                 endpoint: crate::transport::local_endpoint(),
                 collapsed: false,
                 shell: None,
+                image_ssh_target: None,
             }],
             last_host: None,
             sessions: HashMap::new(),

@@ -75,6 +75,7 @@ pub struct Workspace {
     pub claimed: HashSet<(HostId, String)>,
     pub handle: AppHandle<Workspace>,
     pub window_focused: bool,
+    pub paste_pending: bool,
     /// The pane area in window points, for divider drags and target outlines.
     pub area: [f32; 4],
     pub viewport: [f32; 2],
@@ -142,6 +143,7 @@ impl Workspace {
                 endpoint: options.endpoint.clone(),
                 collapsed: false,
                 shell: None,
+                image_ssh_target: None,
             });
         }
         let wanted = if explicit {
@@ -192,6 +194,7 @@ impl Workspace {
             claimed: HashSet::new(),
             handle,
             window_focused: true,
+            paste_pending: false,
             area: [0.; 4],
             viewport: [1440., 900.],
             sidebar,
@@ -839,6 +842,8 @@ impl Workspace {
         );
     }
 
+    /// Tabs are listed in the sidebar instead of the toolbar: Sidebar tab position, and
+    /// only while the sidebar is open.
     pub fn sidebar_tabs(&self) -> bool {
         self.settings.vertical_tabs && self.sidebar.is_open()
     }
@@ -995,6 +1000,7 @@ impl Workspace {
                         ("Host name", "my-host", &h.label),
                         ("Endpoint", "https://host.example.ts.net or unix:///path", &h.endpoint),
                         ("Default shell", "Server default — e.g. zsh or /bin/zsh", h.shell.as_deref().unwrap_or("")),
+                        ("SSH image upload target (optional)", "alias or user@host — same machine/account", h.image_ssh_target.as_deref().unwrap_or("")),
                     ],
                 );
             }
@@ -1488,7 +1494,18 @@ impl Workspace {
                         .collect::<Vec<_>>();
                     normalize_font_preferences(&values[0], &fallbacks)
                 });
-                let error = if let Some(result) = &font_preferences {
+                let ssh_error = if matches!(form, Form::EditHost(_)) {
+                    values
+                        .get(3)
+                        .filter(|v| !v.is_empty())
+                        .and_then(|v| rex_linux::image_paste::validate_ssh_target(v).err())
+                        .map(|e| e.to_string())
+                } else {
+                    None
+                };
+                let error = if ssh_error.is_some() {
+                    ssh_error
+                } else if let Some(result) = &font_preferences {
                     result.as_ref().err().map(ToString::to_string)
                 } else if let Form::HostShell(_) = form {
                     // Empty clears it; the server takes one program name, never arguments.
@@ -1570,7 +1587,7 @@ impl Workspace {
                             label: values[0].clone(),
                             endpoint: values[1].clone(),
                             collapsed: false,
-                            shell: None,
+                            shell: None, image_ssh_target: None,
                         });
                         self.active = self.settings.hosts.len() - 1;
                         self.connect_host(self.active, false);
@@ -1579,6 +1596,7 @@ impl Workspace {
                     }
                     Form::EditHost(host) => {
                         let shell = values.get(2).filter(|v| !v.is_empty()).cloned();
+                        self.settings.hosts[host].image_ssh_target = values.get(3).filter(|v| !v.is_empty()).cloned();
                         self.edit_host(host, values[0].clone(), values[1].clone(), shell);
                     }
                 }

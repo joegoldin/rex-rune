@@ -25,7 +25,7 @@ rune-theme-opencode = { git = "https://github.com/anomalyco/rune.git", rev = "10
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt", "net", "time", "macros", "sync"] }
+tokio = { version = "1", features = ["rt", "net", "time", "macros", "sync", "process", "io-util"] }
 tokio-tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
 url = "2"
 # Desktop notifications over D-Bus, with Rune's own zbus build.

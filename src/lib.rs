@@ -1,4 +1,5 @@
 pub mod connection;
+pub mod image_paste;
 pub mod layout;
 pub mod links;
 pub mod settings;

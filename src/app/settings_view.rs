@@ -55,7 +55,7 @@ const SHORTCUTS: &[(&str, &[Shortcut])] = &[
         "Text and view",
         &[
             (&["Ctrl", "Shift", "C"], "Copy"),
-            (&["Ctrl", "Shift", "V"], "Paste"),
+            (&["Ctrl", "V"], "Paste text or image (also Ctrl Shift V)"),
             (&["Shift", "PageUp"], "Scroll history up"),
             (&["Shift", "PageDown"], "Scroll history down"),
             (&["Ctrl", "+"], "Enlarge interface"),

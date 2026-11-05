@@ -9,6 +9,7 @@ mod navigation;
 mod notify;
 mod panel;
 mod panes;
+mod paste;
 mod popups;
 mod settings_view;
 mod sidebar;

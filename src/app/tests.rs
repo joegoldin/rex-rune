@@ -31,6 +31,7 @@ fn workspace_hosts(count: usize) -> Workspace {
                 },
                 collapsed: false,
                 shell: None,
+                image_ssh_target: None,
             })
             .collect(),
         ..Settings::default()
@@ -2765,4 +2766,32 @@ fn ctrl_tab_crosses_all_sessions_and_hosts_in_sidebar_order() {
     );
     std::fs::remove_file(&rt.state.settings_path).ok();
     std::fs::remove_file(&seed.settings_path).ok();
+}
+
+#[test]
+fn image_upload_target_is_optional_persisted_and_cannot_be_an_ssh_option() {
+    let mut ws = workspace_hosts(1);
+    let mut tx = rune::Tx::default();
+    ws.perform(Intent::EditHost(0), &mut tx);
+    assert_eq!(ws.panel.as_ref().unwrap().inputs.len(), 4);
+    ws.panel.as_mut().unwrap().inputs[3] = rune::TextEdit::new("-oProxyCommand=bad");
+    ws.submit(&mut tx);
+    assert!(ws.panel.as_ref().unwrap().error.is_some());
+    assert!(ws.settings.hosts[0].image_ssh_target.is_none());
+    ws.panel.as_mut().unwrap().inputs[3] = rune::TextEdit::new("joe@image-fixture");
+    ws.submit(&mut tx);
+    let saved = Settings::load(&ws.settings_path).unwrap();
+    assert_eq!(
+        saved.hosts[0].image_ssh_target.as_deref(),
+        Some("joe@image-fixture")
+    );
+    ws.perform(Intent::EditHost(0), &mut tx);
+    ws.panel.as_mut().unwrap().inputs[3] = rune::TextEdit::new("");
+    ws.submit(&mut tx);
+    assert!(
+        Settings::load(&ws.settings_path).unwrap().hosts[0]
+            .image_ssh_target
+            .is_none()
+    );
+    std::fs::remove_file(&ws.settings_path).ok();
 }

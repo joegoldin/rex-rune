@@ -69,7 +69,7 @@ fn form(s: &Workspace, form: &Form) -> El {
     }
     if let Form::EditHost(_) = form {
         body = body.child(
-            text("A new endpoint connects to a different server; sessions on the old one keep running. The shell applies to new sessions, tabs and splits.")
+            text("A new endpoint connects to a different server; sessions on the old one keep running. The shell applies to new sessions, tabs and splits. SSH image uploads require a known host key and key-based access to the same machine/account. Set a target for remote or forwarded sockets; leave it empty for local sessions.")
                 .font(ui(12.))
                 .color(rgb(muted()))
                 .wrap(),

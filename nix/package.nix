@@ -8,6 +8,7 @@
   pkg-config,
   makeWrapper,
   fontconfig,
+  openssh,
   libxkbcommon,
   wayland,
   libGL,
@@ -125,6 +126,7 @@ rustPlatform.buildRustPackage {
     done
     wrapProgram "$out/bin/rex-linux" \
       --prefix PATH : ${lib.makeBinPath [ fontconfig ]} \
+      --suffix PATH : ${lib.makeBinPath [ openssh ]} \
       --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibraries}
   '';
   meta = {

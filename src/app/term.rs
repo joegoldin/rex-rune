@@ -174,6 +174,10 @@ impl Term {
         });
     }
 
+    pub fn generation(&self) -> u64 {
+        self.restore_generation
+    }
+
     pub fn status(&self) -> Status {
         let m = self.connection.model.lock().expect("terminal model");
         Status {
