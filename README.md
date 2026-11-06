@@ -114,7 +114,9 @@ A host's default shell (empty means the server user's login shell) is used for e
 | Ctrl Shift P | Search commands, sessions and current-session tabs |
 | Ctrl Shift N / T | New session on the active host / new tab |
 | Ctrl Shift D / Ctrl Alt D | Split right / down |
-| Ctrl PageUp / PageDown | Previous / next tab |
+| Ctrl Tab / Ctrl Shift Tab | Next / previous tab across all sessions and connected hosts, in sidebar order (wraps) |
+| Ctrl PageUp / PageDown | Previous / next tab within the current session |
+| Mouse Back / Forward | Revisit tabs, sessions and hosts in navigation history |
 | Ctrl Alt arrows | Focus an adjacent pane (Alt arrows reach terminal programs) |
 | Ctrl Shift Enter | Zoom / restore the focused pane |
 | Ctrl Shift Space | Focused-pane actions |
@@ -154,6 +156,7 @@ The `scripts/` directory holds integration checks; each script's docstring lists
 - `connection-only-smoke.py`: a missing or stale socket must never execute the Rex CLI.
 - `x11-smoke.py`: real X11 events (forms, clipboard, pointer selection, key isolation).
 - `scroll-selection-x11.py`: private-server Unicode copy checks after scrolling, drag autoscroll, and Shift selection in a fullscreen mouse-tracking TUI without breaking ordinary mouse reports.
+- `navigation-x11.py`: private-server checks for global tab shortcuts, reverse wrapping and mouse Back/Forward across sessions.
 - `kitty-graphics-x11.py`: private-server pixel checks for live RGBA, chunked PNG, image restoration after reattach and deletion.
 - `clipboard-x11.py`: isolated private-server acceptance check for this feature; see its docstring.
 - `alt-arrow-x11.py`: isolated private-server acceptance check for this feature; see its docstring.
