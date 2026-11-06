@@ -37,10 +37,15 @@ pub struct Options {
     /// Explicitly create a persistent session.
     #[arg(long, conflicts_with = "session")]
     pub new: Option<String>,
-    #[arg(long, default_value = "JetBrainsMono Nerd Font")]
-    pub font: String,
-    #[arg(long, default_value_t = 15.0)]
-    pub font_size: f32,
+    /// Override the saved terminal family for this launch.
+    #[arg(long, value_parser = crate::settings::parse_font_family)]
+    pub font: Option<String>,
+    /// Override saved fallback families, in order; repeat for more than one.
+    #[arg(long, value_parser = crate::settings::parse_font_family)]
+    pub font_fallback: Vec<String>,
+    /// Override the saved terminal size (8–48 pt).
+    #[arg(long, value_parser = parse_font_size)]
+    pub font_size: Option<f32>,
     /// Use a separate workspace preferences file.
     #[arg(long)]
     pub config: Option<PathBuf>,
@@ -49,6 +54,29 @@ pub struct Options {
     /// Rune's own flags (`--snap out.png`, `--tree`, `--script steps.json`), after `--`.
     #[arg(last = true, hide = true)]
     pub rune: Vec<String>,
+}
+
+impl Options {
+    pub fn fonts<'a>(&'a self, settings: &'a crate::settings::Settings) -> (&'a str, &'a [String]) {
+        (
+            self.font.as_deref().unwrap_or(&settings.font_family),
+            if self.font_fallback.is_empty() {
+                &settings.font_fallbacks
+            } else {
+                &self.font_fallback
+            },
+        )
+    }
+}
+
+fn parse_font_size(value: &str) -> std::result::Result<f32, String> {
+    let size: f32 = value
+        .parse()
+        .map_err(|_| "Enter a font size in points.".to_owned())?;
+    if !size.is_finite() {
+        return Err("Font size must be finite.".into());
+    }
+    Ok(size.clamp(8., 48.))
 }
 
 pub enum Command {

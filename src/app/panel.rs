@@ -26,6 +26,7 @@ pub enum Intent {
     Zoom,
     Sidebar,
     Settings,
+    Fonts,
     AddHost,
     EditHost(usize),
     RemoveHost(usize),
@@ -43,6 +44,7 @@ impl Intent {
                 | Intent::RenameWindow(_)
                 | Intent::CloseWindow(_)
                 | Intent::Settings
+                | Intent::Fonts
                 | Intent::AddHost
                 | Intent::EditHost(_)
                 | Intent::RemoveHost(_)
@@ -89,6 +91,7 @@ pub enum PaneAction {
 
 #[derive(Clone, Debug)]
 pub enum Form {
+    Fonts,
     /// A host's default shell for new terminals.
     HostShell(usize),
     /// `None`: the selected session (Commands); `Some`: a sidebar row's session.

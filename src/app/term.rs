@@ -47,14 +47,12 @@ pub struct Metrics {
 
 const FEATURES: &str = "'liga' 0, 'calt' 0, 'clig' 0, 'kern' 0";
 
-pub fn metrics(size: f32, family: Option<&'static str>) -> Metrics {
+pub fn metrics(size: f32) -> Metrics {
     let base = TextStyle::new(size, 400.)
         .lh((size * 1.4).ceil())
         .features(FEATURES);
-    let style = match family {
-        Some(name) => base.family(Family::Named(name)),
-        None => base.mono(),
-    };
+    // The mono slot keeps the primary face first and supplies missing glyphs from fallbacks.
+    let style = base.mono();
     let width = rune::text::advance("M", style).max(1.);
     Metrics {
         cell: (width, (size * 1.4).ceil()),
@@ -135,11 +133,11 @@ impl Term {
     }
 
     /// A non-owner never resizes; an owner sends its grid size whenever it changes.
-    pub fn resize_if_owner(&mut self, font: f32, family: Option<&'static str>) {
+    pub fn resize_if_owner(&mut self, font: f32) {
         if self.rect[2] <= 0. || self.rect[3] <= 0. {
             return;
         }
-        let Metrics { cell, .. } = metrics(font, family);
+        let Metrics { cell, .. } = metrics(font);
         let status = self.status();
         let cols = (self.rect[2] / cell.0).floor().clamp(1., 65535.) as u16;
         let rows = (self.rect[3] / cell.1).floor().clamp(1., 65535.) as u16;
@@ -565,10 +563,9 @@ mod tests {
 
     struct RowState {
         cells: Vec<Cell>,
-        family: Option<&'static str>,
     }
     fn view(s: &RowState, _: &mut Cx<RowState>) -> El {
-        let m = metrics(15., s.family);
+        let m = metrics(15.);
         el().w_full()
             .h_full()
             .child(row_el(&s.cells, 0., 0, None, &m))
@@ -583,12 +580,9 @@ mod tests {
         })
         .unwrap();
         let mut renderer = rex_linux::terminal::Renderer::new().unwrap();
-        let fonts = crate::app::fonts::load("JetBrainsMono Nerd Font");
+        let fonts = crate::app::fonts::load("JetBrainsMono Nerd Font", &[]);
         let mut rt = Runtime::with_text(
-            RowState {
-                cells: vec![],
-                family: fonts.terminal,
-            },
+            RowState { cells: vec![] },
             view,
             (2300., 100.),
             Env::new(true, 1.5),

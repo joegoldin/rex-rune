@@ -271,6 +271,18 @@ fn walk_font_dirs() -> Vec<(String, std::path::PathBuf)> {
         dirs.extend(data_dirs.split(':').filter(|d| !d.is_empty()).map(|d| std::path::Path::new(d).join("fonts")));
     }
     let mut found: Vec<(String, std::path::PathBuf)> = Vec::new();
+    // Nix and other fontconfig setups expose fonts outside the conventional directories.
+    #[cfg(target_os = "linux")]
+    if let Ok(out) = std::process::Command::new("fc-list").args(["-f", "%{file}\n"]).output()
+        && out.status.success()
+    {
+        for file in String::from_utf8_lossy(&out.stdout).lines() {
+            let path = std::path::PathBuf::from(file);
+            if let Some(name) = path.file_name() {
+                found.push((name.to_string_lossy().to_lowercase().replace([' ', '.'], ""), path));
+            }
+        }
+    }
     let mut stack = dirs;
     let mut visited = std::collections::HashSet::new();
     while let Some(dir) = stack.pop() {
@@ -291,6 +303,8 @@ fn walk_font_dirs() -> Vec<(String, std::path::PathBuf)> {
             }
         }
     }
+    let mut seen = std::collections::HashSet::new();
+    found.retain(|(_, path)| seen.insert(path.clone()));
     found
 }
 

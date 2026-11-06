@@ -154,7 +154,6 @@ pub(crate) fn placeholder() -> Workspace {
 }
 
 pub fn run(mut options: Options) -> anyhow::Result<()> {
-    options.font_size = options.font_size.clamp(8., 48.);
     let (settings, path) = match &options.config {
         Some(path) => (Settings::load(path)?, path.clone()),
         None => Settings::load_default()?,
@@ -169,7 +168,8 @@ pub fn run(mut options: Options) -> anyhow::Result<()> {
             ))
         })
         .unwrap_or((1440., 900.));
-    let fonts = fonts::load(&options.font);
+    let (family, fallbacks) = options.fonts(&settings);
+    let fonts = fonts::load(family, fallbacks);
     rune::set_app_id("dev.shuv.rex-linux");
     if let Err(error) = rune::set_app_icon_png(APP_ICON) {
         eprintln!("Could not load the Rex window icon: {error}");

@@ -66,7 +66,9 @@ Options:
 | `--session <LABEL\|ID>` | Select a session by exact label or ID. Missing or ambiguous names never pick an arbitrary session. |
 | `--new <LABEL>` | Explicitly create a persistent session (conflicts with `--session`). Ordinary attachment never creates or destroys sessions. |
 | `--block <ID>` | Initially focus this terminal block. |
-| `--font <FAMILY>`, `--font-size <PX>` | Terminal font (default `JetBrainsMono Nerd Font`, 15) resolved through fontconfig. If the family is missing, the bundled IBM Plex Mono is used and a line is printed on stderr. |
+| `--font <FAMILY>` | Override the saved terminal family for this launch. Fonts are resolved through fontconfig; an unavailable primary family uses bundled IBM Plex Mono and reports it on stderr. |
+| `--font-fallback <FAMILY>` | Override the saved fallback list for this launch. Repeat for an ordered list. System script/symbol fallbacks remain available. |
+| `--font-size <PT>` | Override the saved terminal size (8–48 pt, initially 15). |
 | `--config <PATH>` | Use a separate workspace preferences file. |
 | `--window-size <WxH>` | Requested startup size (default `1440x900`); tiling compositors may override it. |
 
@@ -82,9 +84,11 @@ This installs `dev.shuv.rex-linux.desktop` under `$XDG_DATA_HOME/applications` (
 
 ## Configuration
 
-Preferences are stored as JSON in `$XDG_CONFIG_HOME/rex-linux/workspace.json` (default `~/.config/rex-linux/workspace.json`): saved hosts (label, endpoint, collapsed state, optional default shell), the last host and session per host, sidebar width, terminal font size, interface zoom (`ui_scale`), the corner notices appear in (`notice_position`), the activity and notification choices (`notifications`) and whether agents may name sessions (`agent_session_naming`). Use `--config <path>` to keep a separate workspace.
+Preferences are stored as JSON in `$XDG_CONFIG_HOME/rex-linux/workspace.json` (default `~/.config/rex-linux/workspace.json`): saved hosts (label, endpoint, collapsed state, optional default shell), the last host and session per host, sidebar width, terminal font family (`font_family`), ordered fallback families (`font_fallbacks`), font size, interface zoom (`ui_scale`), the corner notices appear in (`notice_position`), the activity and notification choices (`notifications`) and whether agents may name sessions (`agent_session_naming`). Use `--config <path>` to keep a separate workspace.
 
-Settings (the sliders button in the toolbar, `Ctrl ,`, or Settings… in Commands) has Interface (zoom, sidebar, notice corner), Terminal (font size, each host's default shell), Notifications (activity in tabs, desktop notifications and which changes send one), Integrations (Rex's skill and hooks for coding agents on this machine), Remote Hosts (add, edit or remove saved hosts) and Shortcuts sections. A host's name, endpoint and default shell can also be edited from its sidebar header's right-click menu, from Edit host… in Commands, or from an offline session's menu. Removing a host only stops this client connecting to it; its sessions keep running on the server. A changed endpoint connects to that server as a new host.
+Settings (the sliders button in the toolbar, `Ctrl ,`, or Settings… in Commands) has Interface (zoom, sidebar, notice corner), Terminal (font family, fallback families, size, each host's default shell), Notifications (activity in tabs, desktop notifications and which changes send one), Integrations (Rex's skill and hooks for coding agents on this machine), Remote Hosts (add, edit or remove saved hosts) and Shortcuts sections. A host's name, endpoint and default shell can also be edited from its sidebar header's right-click menu, from Edit host… in Commands, or from an offline session's menu. Removing a host only stops this client connecting to it; its sessions keep running on the server. A changed endpoint connects to that server as a new host.
+
+In Terminal settings, **Change…** saves the primary family and optional comma-separated fallback families. Family changes take effect when you reopen the client; they do not restart the server or its sessions. The initial family is `JetBrainsMono Nerd Font`, with bundled IBM Plex Mono used if unavailable. An empty fallback list uses automatic system fallback. Linux discovery includes fontconfig's fonts, including fonts installed through Nix. Fallback faces supply missing glyphs without changing the primary font's grid metrics; install a suitable CJK font, such as Noto Sans CJK, for Chinese, Japanese and Korean. `--font` and `--font-fallback` take precedence over saved family choices without replacing them, so remove those flags from launchers when you want Settings to control the family.
 
 A host's default shell (empty means the server user's login shell) is used for every new session, tab and split this client creates on that host. Host endpoints must be `unix://` with an absolute path, or `https://`, `http://`, `wss://` or `ws://` URLs.
 

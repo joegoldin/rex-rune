@@ -32,6 +32,10 @@ manager's menu. The patch adds the following without changing existing behavior 
   PNGs return `ImageError`.
 - `El::no_wrap()` for styled display text without ellipsis or fade. Rex owns terminal line
   breaks, so fractional-DPI width rounding must not wrap a text run onto another row.
+- Linux system-font discovery includes `fc-list` results and deduplicates them with the
+  conventional directory scan. This lets Rune's existing CJK, symbol and script fallbacks
+  find fontconfig-managed files outside `/usr/share/fonts`, including Nix store fonts.
+  It does not change the configured primary family or the font-selection machinery.
 
 Spike: `examples/chrome_spike.rs` and `scripts/chrome-spike-x11.py`.
 

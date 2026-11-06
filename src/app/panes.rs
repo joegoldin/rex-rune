@@ -245,14 +245,14 @@ fn card(
                 .instant_changes()
                 .motion(STILL)
                 .on_layout(move |s: &mut Workspace, r| {
-                    let (font, family) = (s.settings.font_size, s.terminal_family);
+                    let font = s.settings.font_size;
                     if let Some(t) = s.terminals.get_mut(&k1) {
                         t.rect = r;
-                        t.resize_if_owner(font, family);
+                        t.resize_if_owner(font);
                     }
                 })
                 .on_drag(move |s: &mut Workspace, d, tx| {
-                    let cell = term::metrics(s.settings.font_size, s.terminal_family).cell;
+                    let cell = term::metrics(s.settings.font_size).cell;
                     let focused = s.focused_block().as_deref() == Some(k2.1.as_str());
                     let Some(t) = s.terminals.get_mut(&k2) else {
                         return;
@@ -313,7 +313,7 @@ fn card(
                 // server drops it for the others. Only the focused pane hears it.
                 .on_pointer_move_local(move |s: &mut Workspace, p: PointerEvent, tx: &mut Tx| {
                     tx.live_only();
-                    let cell = term::metrics(s.settings.font_size, s.terminal_family).cell;
+                    let cell = term::metrics(s.settings.font_size).cell;
                     let focused = s.focused_block().as_deref() == Some(k4.1.as_str());
                     let Some(t) = s.terminals.get_mut(&k4) else {
                         return;
@@ -330,7 +330,7 @@ fn card(
                 // Shift+right-click goes to such a program (sent on release, when Rune reports
                 // it).
                 .on_secondary_press_local(move |s: &mut Workspace, p: PointerEvent, tx: &mut Tx| {
-                    let cell = term::metrics(s.settings.font_size, s.terminal_family).cell;
+                    let cell = term::metrics(s.settings.font_size).cell;
                     let mods = tx.mods();
                     let focused = s.focused_block().as_deref() == Some(k5.1.as_str());
                     if let Some(t) = s.terminals.get_mut(&k5)
@@ -352,7 +352,7 @@ fn card(
                 })
                 .on_wheel(move |s: &mut Workspace, e: WheelEvent, _| {
                     let scale = if e.precise { s.ui_scale() } else { 1. };
-                    let cell = term::metrics(s.settings.font_size, s.terminal_family).cell;
+                    let cell = term::metrics(s.settings.font_size).cell;
                     let Some(t) = s.terminals.get_mut(&k3) else {
                         return false;
                     };
@@ -480,7 +480,7 @@ fn target_block(s: &Workspace) -> Option<String> {
 }
 
 pub fn area(s: &Workspace) -> El {
-    let m = term::metrics(s.settings.font_size, s.terminal_family);
+    let m = term::metrics(s.settings.font_size);
     let mut area = el()
         .key("panes")
         .grow(1.)

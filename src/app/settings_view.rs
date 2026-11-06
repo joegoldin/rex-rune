@@ -274,13 +274,9 @@ fn terminal(s: &Workspace) -> El {
     let mut body = col()
         .gap(4.)
         .child(setting(
-            "Font",
-            "Choose another with --font when starting Rex.",
-            text(font.to_owned())
-                .font(medium(13.))
-                .color(rgb(INK))
-                .truncate()
-                .max_w(220.),
+            "Font family",
+            &format!("Saved: {}. Active: {font}.", s.settings.font_family),
+            pill("font-change", "Change…", Pill::Neutral, 26., |s, tx| s.perform(Intent::Fonts, tx)),
         ))
         .child(divider())
         .child(setting(
@@ -292,6 +288,13 @@ fn terminal(s: &Workspace) -> El {
                 |s, _| s.change_font(-1.),
                 |s, _| s.change_font(1.),
             ),
+        ))
+        .child(divider())
+        .child(setting(
+            "Fallback fonts",
+            "Used for missing glyphs, followed by installed system fallbacks. Changes apply next launch.",
+            text(if s.settings.font_fallbacks.is_empty() { "Automatic".into() } else { s.settings.font_fallbacks.join(", ") })
+                .font(medium(13.)).color(rgb(INK)).wrap().max_w(220.),
         ))
         .child(group("Default shell"));
     for (i, host) in s.settings.hosts.iter().enumerate() {
