@@ -157,7 +157,6 @@ fn shortcut(s: &mut Workspace, ev: &KeyEvent, tx: &mut Tx) -> bool {
     } else if m.shift && !ctrl(ev) && matches!(ev.key, Key::PageUp | Key::PageDown) {
         let lines = if ev.key == Key::PageUp { -20 } else { 20 };
         if let Some(term) = s.active_terminal_mut() {
-            term.selection = None;
             term.send(Command::Scroll(lines));
         }
     } else {
@@ -253,7 +252,7 @@ pub fn on_key(s: &mut Workspace, ev: &KeyEvent, tx: &mut Tx) -> bool {
     if !term.status().live {
         return true;
     }
-    term.selection = None;
+    term.clear_selection();
     if let Some(payload) = keys::payload(ev, code, base, action) {
         term.send(Command::Key(payload));
         if let Some(code) = code {

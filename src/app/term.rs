@@ -24,6 +24,11 @@ pub struct Term {
     /// The grid's rect in window points (inside the padding).
     pub rect: [f32; 4],
     pub selection: Option<(usize, usize)>,
+    pub selecting: bool,
+    selection_revision: u64,
+    last_selection_input: Option<rex_linux::terminal::selection::Input>,
+    restore_generation: u64,
+
     pub preedit: String,
     pub notice: Option<String>,
     pub scroll: f32,
@@ -70,18 +75,21 @@ pub struct Status {
 
 impl Term {
     pub fn new(connection: Connection) -> Self {
-        let frame = connection
-            .model
-            .lock()
-            .expect("terminal model")
-            .frame
-            .clone();
+        let (frame, restore_generation) = {
+            let model = connection.model.lock().expect("terminal model");
+            (model.frame.clone(), model.restore_generation)
+        };
         Self {
             connection,
             frame,
             last_size: None,
             rect: [0.; 4],
             selection: None,
+            selecting: false,
+            selection_revision: 0,
+            last_selection_input: None,
+            restore_generation,
+
             preedit: String::new(),
             notice: None,
             scroll: 0.,
@@ -91,13 +99,30 @@ impl Term {
     }
 
     pub fn refresh(&mut self) {
-        self.frame = self
-            .connection
-            .model
-            .lock()
-            .expect("terminal model")
-            .frame
-            .clone();
+        let (frame, generation) = {
+            let model = self.connection.model.lock().expect("terminal model");
+            (model.frame.clone(), model.restore_generation)
+        };
+        if generation != self.restore_generation {
+            self.selection = None;
+            self.selecting = false;
+            self.last_selection_input = None;
+            self.restore_generation = generation;
+        }
+        if let Some(frame) = &frame {
+            if frame.selection_error != self.frame.as_ref().and_then(|f| f.selection_error.clone())
+            {
+                self.notice = frame.selection_error.clone();
+            }
+            if frame.selection_revision == self.selection_revision {
+                if frame.selection_text.is_some() && self.selection.is_none() {
+                    self.selection = Some((0, 0));
+                } else if !self.selecting && frame.selection_text.is_none() {
+                    self.selection = None;
+                }
+            }
+        }
+        self.frame = frame;
     }
 
     pub fn status(&self) -> Status {
@@ -161,7 +186,7 @@ impl Term {
         let cols = self.frame.as_ref().map_or(1, |f| f.cols) as usize;
         let rows = self.frame.as_ref().map_or(1, |f| f.rows) as usize;
         let col = (x / cell.0).max(0.) as usize;
-        let row = (y / cell.1).max(0.) as usize;
+        let row = ((y / cell.1).max(0.) as usize).min(self.visible_rows(cell).saturating_sub(1));
         (row + self.display_row(cell)).min(rows - 1) * cols + col.min(cols - 1)
     }
 
@@ -209,9 +234,66 @@ impl Term {
         }
     }
 
+    pub fn selection_event(
+        &mut self,
+        phase: rex_linux::terminal::selection::Phase,
+        x: f32,
+        y: f32,
+        cell: (f32, f32),
+    ) {
+        use rex_linux::terminal::selection::{Geometry, Input, Phase};
+        let index = self.index(x, y, cell);
+        let cols = usize::from(self.frame.as_ref().map_or(1, |f| f.cols));
+        self.selection_revision = self.selection_revision.wrapping_add(1);
+        let input = Input {
+            generation: self.restore_generation,
+            revision: self.selection_revision,
+            phase,
+            at: ((index % cols) as u16, (index / cols) as u16),
+            position: (f64::from(x), f64::from(y)),
+            geometry: Geometry {
+                columns: cols as u32,
+                cell_width: cell.0.ceil().max(1.) as u32,
+                padding_left: 0,
+                screen_height: self.rect[3].ceil().max(1.) as u32,
+            },
+        };
+        self.selecting = matches!(phase, Phase::Down(_) | Phase::Move);
+        self.last_selection_input = Some(input);
+        self.send(Command::Selection(input));
+    }
+
+    pub fn end_selection(&mut self) {
+        if self.selecting
+            && let Some(mut input) = self.last_selection_input
+        {
+            self.selection_revision = self.selection_revision.wrapping_add(1);
+            input.revision = self.selection_revision;
+            input.phase = rex_linux::terminal::selection::Phase::Up;
+            self.send(Command::Selection(input));
+        }
+        self.selecting = false;
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+        self.selecting = false;
+        if let Some(mut input) = self.last_selection_input.take() {
+            self.selection_revision = self.selection_revision.wrapping_add(1);
+            input.revision = self.selection_revision;
+            input.phase = rex_linux::terminal::selection::Phase::Clear;
+            self.send(Command::Selection(input));
+        }
+    }
+
     pub fn copy_text(&self) -> Option<String> {
-        let (a, b) = self.selection?;
-        Some(self.frame.as_ref()?.selected_text(a, b))
+        self.selection?;
+        let frame = self.frame.as_ref()?;
+        if frame.selection_revision == self.selection_revision {
+            frame.selection_text.as_ref().map(ToString::to_string)
+        } else {
+            None
+        }
     }
 }
 
@@ -493,10 +575,15 @@ pub fn grid(key: &str, term: &Term, m: &Metrics, look: GridLook) -> El {
     let selection = term.selection.map(|(a, b)| (a.min(b), a.max(b)));
     let mut grid = el().w_full().h_full().instant_changes();
     for (y, cells) in frame.cells.iter().enumerate().skip(start).take(visible) {
-        let sel = selection.and_then(|(a, b)| {
-            let (row0, row1) = (y * cols, y * cols + cols - 1);
-            (a <= row1 && b >= row0).then(|| (a.max(row0) - row0, b.min(row1) - row0))
-        });
+        let sel = if term.selection.is_some() && frame.selection_revision == term.selection_revision
+        {
+            frame.selection_rows.get(y).copied().flatten()
+        } else {
+            selection.and_then(|(a, b)| {
+                let (row0, row1) = (y * cols, y * cols + cols - 1);
+                (a <= row1 && b >= row0).then(|| (a.max(row0) - row0, b.min(row1) - row0))
+            })
+        };
         let mut h = DefaultHasher::new();
         for cell in cells {
             hash_cell(cell, &mut h);

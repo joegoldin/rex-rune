@@ -414,6 +414,11 @@ impl Workspace {
 
     pub fn window_focus(&mut self, focused: bool) {
         self.window_focused = focused;
+        if !focused {
+            for term in self.terminals.values_mut() {
+                term.end_selection();
+            }
+        }
         if focused {
             self.claimed.clear();
             self.claim_visible();
@@ -609,6 +614,9 @@ impl Workspace {
     }
 
     pub fn update_visibility(&mut self) {
+        for term in self.terminals.values_mut() {
+            term.end_selection();
+        }
         for index in 0..self.hosts.len() {
             self.send(index, HostCommand::Visibility(index == self.active));
         }
@@ -1055,6 +1063,9 @@ impl Workspace {
     }
 
     pub fn open_panel(&mut self, kind: PanelKind, title: &str, fields: &[(&str, &str, &str)]) {
+        for term in self.terminals.values_mut() {
+            term.end_selection();
+        }
         let previous = self.panel.take();
         let target = previous.as_ref().and_then(|p| p.target.clone());
         // Forms and confirmations opened from Settings go back to it.
