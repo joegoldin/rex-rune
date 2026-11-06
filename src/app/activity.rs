@@ -44,12 +44,22 @@ fn focused_block(window: &session::Window) -> Option<&str> {
         .or_else(|| blocks(window).next())
 }
 
-/// What a tab is called: the name it was given, or for one that still has the label every
-/// new tab gets, its focused program's terminal title when there is one.
+/// What a tab is called: its chosen name, or for a default label, its focused program's
+/// terminal title when there is one.
 pub fn tab_name(model: &HostModel, window: &session::Window) -> String {
     let label = window.label.as_deref().filter(|l| !l.is_empty());
-    let title = label
-        .is_none_or(|l| l == DEFAULT_TAB_LABEL)
+    // The server's default uses the last eight ID characters. Match this window's
+    // own ID so an explicitly named "Window ..." on another window stays intact.
+    let generated = label
+        .and_then(|l| l.strip_prefix("Window "))
+        .is_some_and(|suffix| {
+            suffix.len() == 8
+                && window
+                    .window_id
+                    .as_deref()
+                    .is_some_and(|id| id.ends_with(suffix))
+        });
+    let title = (generated || label.is_none_or(|l| l == DEFAULT_TAB_LABEL))
         .then(|| focused_block(window).and_then(|b| model.title(b)))
         .flatten();
     title.or(label).unwrap_or("Terminal").to_owned()
@@ -341,3 +351,84 @@ impl Workspace {
 }
 
 pub type TabStates = HashMap<(HostId, String), ProgramState>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tab(id: &str, label: Option<&str>) -> (HostModel, session::Window) {
+        let mut model = HostModel::default();
+        model
+            .titles
+            .insert("block".into(), ("dotfiles".into(), None));
+        let window = session::Window {
+            window_id: Some(id.into()),
+            label: label.map(str::to_owned),
+            focused_block_id: Some("block".into()),
+            layers: vec![session::Layer {
+                blocks: vec![session::LayerBlock {
+                    block_id: Some("block".into()),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        (model, window)
+    }
+
+    #[test]
+    fn generated_window_labels_use_current_terminal_titles() {
+        for (id, label, title) in [
+            (
+                "window:01a1aa89-4009-757a-a7b9-1ce89dcd0a4c",
+                "Window 9dcd0a4c",
+                "dotfiles",
+            ),
+            (
+                "window:01a1ad21-2a48-7290-8bd0-6c4d624e75b5",
+                "Window 624e75b5",
+                "bedcontrol",
+            ),
+        ] {
+            let (mut model, window) = tab(id, Some(label));
+            model.titles.insert("block".into(), (title.into(), None));
+            assert_eq!(tab_name(&model, &window), title);
+        }
+    }
+
+    #[test]
+    fn explicit_window_names_keep_their_labels() {
+        for label in ["Work", "Window 624e75b5", "Window notes", "Shell commands"] {
+            let (model, window) = tab("window:01a1aa89-4009-757a-a7b9-1ce89dcd0a4c", Some(label));
+            assert_eq!(tab_name(&model, &window), label);
+        }
+        let (model, mut window) = tab("short", Some("Window 9dcd0a4c"));
+        assert_eq!(tab_name(&model, &window), "Window 9dcd0a4c");
+        window.window_id = None;
+        assert_eq!(tab_name(&model, &window), "Window 9dcd0a4c");
+    }
+
+    #[test]
+    fn generated_window_labels_survive_missing_and_stale_titles() {
+        let (mut model, window) = tab(
+            "window:01a1aa89-4009-757a-a7b9-1ce89dcd0a4c",
+            Some("Window 9dcd0a4c"),
+        );
+        model.titles.clear();
+        assert_eq!(tab_name(&model, &window), "Window 9dcd0a4c");
+        model
+            .titles
+            .insert("block".into(), ("stale".into(), Some(42)));
+        model.foreground.insert("block".into(), vec![99]);
+        assert_eq!(tab_name(&model, &window), "Window 9dcd0a4c");
+    }
+
+    #[test]
+    fn shell_and_unlabelled_windows_keep_their_title_fallback() {
+        for label in [Some(DEFAULT_TAB_LABEL), None, Some("")] {
+            let (model, window) = tab("window", label);
+            assert_eq!(tab_name(&model, &window), "dotfiles");
+        }
+    }
+}
