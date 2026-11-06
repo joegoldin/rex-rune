@@ -373,17 +373,17 @@ fn agent_row(s: &Workspace, harness: &Harness) -> El {
     let id = harness.id.clone();
     let installed = harness.installed();
     let (state, tone) = match installed {
-        Installed::Yes => ("Installed", MUTED),
-        Installed::Outdated => ("Update available", WARNING),
-        Installed::No if !harness.detected => ("Not found on this machine", MUTED),
-        Installed::No => ("Not installed", MUTED),
-        Installed::Conflict => ("Another skill named rex is installed", WARNING),
-        Installed::Unreadable => ("Can't read its settings", WARNING),
+        Installed::Yes => ("Installed", muted_color()),
+        Installed::Outdated => ("Update available", warning_color()),
+        Installed::No if !harness.detected => ("Not found on this machine", muted_color()),
+        Installed::No => ("Not installed", muted_color()),
+        Installed::Conflict => ("Another skill named rex is installed", warning_color()),
+        Installed::Unreadable => ("Can't read its settings", warning_color()),
     };
     let mut detail = col().gap(2.).min_w(0.).grow(1.).child(
         text(agent_name(&id).to_owned())
             .font(ui(13.))
-            .color(rgb(INK)),
+            .color(rgb(ink_color())),
     );
     detail = detail.child(text(state).font(ui(11.5)).color(rgb(tone)));
     let shared = s.sharing(&id);
@@ -397,7 +397,7 @@ fn agent_row(s: &Workspace, harness: &Harness) -> El {
                 shared.join(" and ")
             ))
             .font(ui(11.5))
-            .color(rgb(MUTED))
+            .color(rgb(muted_color()))
             .wrap(),
         );
     }
@@ -458,7 +458,7 @@ pub fn section(s: &Workspace) -> El {
     let mut body = col().gap(4.).child(
         text("On this machine, Rex can teach coding agents to use the rex command (a skill) and, where the agent supports it, tell each agent session which Rex session and terminal it runs in (a hook). Every change is shown before it's made.")
             .font(ui(12.))
-            .color(rgb(MUTED))
+            .color(rgb(muted_color()))
             .wrap()
             .mb(6.),
     );
@@ -478,7 +478,7 @@ pub fn section(s: &Workspace) -> El {
                 text("Checking agents…")
                     .key("agents-checking")
                     .font(ui(13.))
-                    .color(rgb(MUTED)),
+                    .color(rgb(muted_color())),
             );
         }
         AgentStatus::Unavailable(words) => {
@@ -563,7 +563,7 @@ fn step_line(s: &Workspace, step: &Step) -> El {
     if let Some(reason) = &step.reason {
         line.push_str(&format!(" ({reason})"));
     }
-    text(line).font(ui(12.)).color(rgb(INK)).wrap()
+    text(line).font(ui(12.)).color(rgb(ink_color())).wrap()
 }
 
 /// The preview of an agent change: what `rex` reported it would do, and Keep / Apply.
@@ -574,7 +574,11 @@ pub fn confirm(s: &Workspace, title: &str, change: &AgentChange, steps: &[Step])
         .collect();
     let mut list = col().gap(6.);
     if shown.is_empty() {
-        list = list.child(text("Nothing to change.").font(ui(13.)).color(rgb(MUTED)));
+        list = list.child(
+            text("Nothing to change.")
+                .font(ui(13.))
+                .color(rgb(muted_color())),
+        );
     }
     for step in &shown {
         list = list.child(step_line(s, step));
@@ -601,10 +605,14 @@ pub fn confirm(s: &Workspace, title: &str, change: &AgentChange, steps: &[Step])
     };
     let mut body = col()
         .gap(12.)
-        .child(text(title.to_owned()).font(strong(15.)).color(rgb(INK)))
+        .child(
+            text(title.to_owned())
+                .font(strong(15.))
+                .color(rgb(ink_color())),
+        )
         .child(list);
     if !note.is_empty() {
-        body = body.child(text(note).font(ui(12.)).color(rgb(MUTED)).wrap());
+        body = body.child(text(note).font(ui(12.)).color(rgb(muted_color())).wrap());
     }
     body.child(
         row()

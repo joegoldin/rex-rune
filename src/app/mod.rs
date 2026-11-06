@@ -46,6 +46,7 @@ fn resize_band(e: WindowEdge) -> El {
 }
 
 pub(crate) fn view(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
+    theme::set_current(s.settings.theme);
     let scale = s.ui_scale();
     let viewport = s.viewport.map(|v| v / scale);
     let mut body = row().key("body").grow(1.).w_full().min_h(0.);
@@ -62,7 +63,7 @@ pub(crate) fn view(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
         .origin(0., 0.)
         .scale(scale)
         .scale_motion(STILL)
-        .fill(rgb(GROUND))
+        .fill(rgb(ground_color()))
         .on_key_up(input::on_key_up)
         .on_window_focus(|s: &mut Workspace, focused, _| s.window_focus(focused))
         .child(
@@ -86,7 +87,7 @@ pub(crate) fn view(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
         .key("window")
         .w_full()
         .h_full()
-        .fill(rgb(GROUND))
+        .fill(rgb(ground_color()))
         .on_layout(|s: &mut Workspace, r| s.viewport = [r[2], r[3]])
         .child(root);
     // Native resize targets stay in window points at every content zoom. The corner above

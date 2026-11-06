@@ -339,7 +339,9 @@ impl Workspace {
                         }
                     })
                     .expect("terminal wake thread");
-                self.terminals.insert(key, Term::new(connection.clone()));
+                let mut term = Term::new(connection.clone());
+                term.send(Command::Theme(self.settings.theme));
+                self.terminals.insert(key, term);
             }
         }
         self.terminals
@@ -612,6 +614,14 @@ impl Workspace {
         for index in 0..self.hosts.len() {
             self.send(index, HostCommand::Visibility(index == self.active));
         }
+    }
+
+    pub fn set_theme(&mut self, theme: rex_linux::theme::Theme) {
+        self.settings.theme = theme;
+        for term in self.terminals.values_mut() {
+            term.send(Command::Theme(theme));
+        }
+        self.save();
     }
 
     pub fn toggle_sidebar(&mut self) {

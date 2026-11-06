@@ -84,7 +84,9 @@ This installs `dev.shuv.rex-linux.desktop` under `$XDG_DATA_HOME/applications` (
 
 Preferences are stored as JSON in `$XDG_CONFIG_HOME/rex-linux/workspace.json` (default `~/.config/rex-linux/workspace.json`): saved hosts (label, endpoint, collapsed state, optional default shell), the last host and session per host, sidebar width, terminal font size, interface zoom (`ui_scale`), the corner notices appear in (`notice_position`), the activity and notification choices (`notifications`) and whether agents may name sessions (`agent_session_naming`). Use `--config <path>` to keep a separate workspace.
 
-Settings (the sliders button in the toolbar, `Ctrl ,`, or Settings… in Commands) has Interface (zoom, sidebar, notice corner), Terminal (font size, each host's default shell), Notifications (activity in tabs, desktop notifications and which changes send one), Integrations (Rex's skill and hooks for coding agents on this machine), Remote Hosts (add, edit or remove saved hosts) and Shortcuts sections. A host's name, endpoint and default shell can also be edited from its sidebar header's right-click menu, from Edit host… in Commands, or from an offline session's menu. Removing a host only stops this client connecting to it; its sessions keep running on the server. A changed endpoint connects to that server as a new host.
+Settings (the sliders button in the toolbar, `Ctrl ,`, or Settings… in Commands) has Interface (theme, zoom, sidebar, notice corner), Terminal (font size, each host's default shell), Notifications (activity in tabs, desktop notifications and which changes send one), Integrations (Rex's skill and hooks for coding agents on this machine), Remote Hosts (add, edit or remove saved hosts) and Shortcuts sections. A host's name, endpoint and default shell can also be edited from its sidebar header's right-click menu, from Edit host… in Commands, or from an offline session's menu. Removing a host only stops this client connecting to it; its sessions keep running on the server. A changed endpoint connects to that server as a new host.
+
+In Interface settings, **Theme** switches between Midnight and Gruvbox Dark immediately and persists the choice. It changes chrome and terminal defaults, not explicit application RGB colours or OSC overrides.
 
 A host's default shell (empty means the server user's login shell) is used for every new session, tab and split this client creates on that host. Host endpoints must be `unix://` with an absolute path, or `https://`, `http://`, `wss://` or `ws://` URLs.
 
@@ -129,6 +131,7 @@ The `scripts/` directory holds integration checks; each script's docstring lists
 - `revision8-check.py`: API revision negotiation and bootstrap tickets against a disposable server, optionally running the probes.
 - `connection-only-smoke.py`: a missing or stale socket must never execute the Rex CLI.
 - `x11-smoke.py`: real X11 events (forms, clipboard, pointer selection, key isolation).
+- `themes-x11.py`: isolated private-server acceptance check for this feature; see its docstring.
 - `rune-acceptance-x11.py`: window-corner, terminal-key and frame-CPU acceptance checks on X11.
 - `chrome-spike-x11.py` (with the `chrome_spike` example): borderless window chrome on X11.
 - `wayland-seat-smoke.py`: Wayland seat/resource selection on a multi-seat compositor.

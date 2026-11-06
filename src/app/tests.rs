@@ -1569,3 +1569,41 @@ fn a_missing_rex_explains_itself_and_naming_reapplies_to_installed_agents() {
     assert!(preview.contains(&"--dry-run".to_owned()));
     std::fs::remove_file(&ws.settings_path).ok();
 }
+
+#[test]
+fn interface_settings_offer_persisted_theme_choices() {
+    let mut rt = runtime(workspace());
+    rt.update(|s, tx| s.perform(Intent::Settings, tx));
+    for _ in 0..4 {
+        rt.frame(1. / 60.);
+    }
+    assert!(
+        has(&rt, "theme-choice"),
+        "Interface settings lack theme choices"
+    );
+    let rect = rt
+        .elements()
+        .into_iter()
+        .find(|e| e.label.as_deref() == Some("Gruvbox Dark") && e.role == "radio")
+        .unwrap()
+        .rect;
+    rt.pointer_down(rect[0] + rect[2] / 2., rect[1] + rect[3] / 2.);
+    rt.pointer_up(rect[0] + rect[2] / 2., rect[1] + rect[3] / 2.);
+    for _ in 0..4 {
+        rt.frame(1. / 60.);
+    }
+    assert_eq!(
+        rt.state.settings.theme,
+        rex_linux::theme::Theme::GruvboxDark
+    );
+    assert_eq!(
+        Settings::load(&rt.state.settings_path).unwrap().theme,
+        rex_linux::theme::Theme::GruvboxDark
+    );
+    assert_eq!(super::theme::ground_color(), 0x282828);
+    assert_eq!(super::theme::kit().c.page, super::theme::rgb(0x282828));
+    rt.update(|s, _| s.set_theme(rex_linux::theme::Theme::Midnight));
+    rt.frame(1. / 60.);
+    assert_eq!(super::theme::kit().c.page, super::theme::rgb(0x001528));
+    std::fs::remove_file(&rt.state.settings_path).ok();
+}

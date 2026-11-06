@@ -64,6 +64,7 @@ pub struct TerminalStream {
     pub received: u64,
     pub snapshot_count: usize,
     pub exit_code: Option<i64>,
+    theme: Option<crate::theme::Theme>,
 }
 impl TerminalStream {
     pub fn new(nonce: u64) -> Self {
@@ -74,15 +75,27 @@ impl TerminalStream {
             received: 0,
             snapshot_count: 0,
             exit_code: None,
+            theme: None,
         }
     }
+    pub fn set_theme(&mut self, theme: crate::theme::Theme) -> Result<()> {
+        self.theme = Some(theme);
+        if let Some(terminal) = &mut self.terminal {
+            theme.apply(terminal)?;
+        }
+        Ok(())
+    }
+
     pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {
         self.received += bytes.len() as u64;
         let tail;
         let bytes = if self.terminal.is_none() {
-            let Some((terminal, rest)) = self.snapshot.push(bytes)? else {
+            let Some((mut terminal, rest)) = self.snapshot.push(bytes)? else {
                 return Ok(());
             };
+            if let Some(theme) = self.theme {
+                theme.apply(&mut terminal)?;
+            }
             self.terminal = Some(terminal);
             self.snapshot_count += 1;
             tail = rest;
@@ -112,6 +125,9 @@ impl TerminalStream {
                             value["cell_width_px"].as_u64().unwrap_or(0) as u32,
                             value["cell_height_px"].as_u64().unwrap_or(0) as u32,
                         )?;
+                    }
+                    Some("theme") if self.theme.is_some() => {
+                        self.theme.expect("selected theme").apply(terminal)?
                     }
                     Some("theme") => {
                         terminal.set_default_fg_color(parse_color(value["foreground"].as_str()))?;

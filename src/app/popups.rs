@@ -70,7 +70,7 @@ pub fn target_outline(s: &Workspace) -> Option<El> {
             .size(w, h)
             .radius(radius)
             .continuous_corners()
-            .border(1.5, rgb(ACCENT)),
+            .border(1.5, rgb(accent_color())),
     )
 }
 
@@ -145,12 +145,12 @@ pub fn list_popup(s: &Workspace, viewport: [f32; 2]) -> El {
                         .px(10.)
                         .gap(7.)
                         .center_y()
-                        .children(entry.group_icon.map(|i| glyph(i, 13., rgb(MUTED))))
+                        .children(entry.group_icon.map(|i| glyph(i, 13., rgb(muted_color()))))
                         .child(
                             text(group.clone())
                                 .font(label_caps())
                                 .text_case(rune::TextCase::Uppercase)
-                                .color(rgb(MUTED))
+                                .color(rgb(muted_color()))
                                 .truncate()
                                 .grow(1.)
                                 .shrink(),
@@ -172,7 +172,7 @@ pub fn list_popup(s: &Workspace, viewport: [f32; 2]) -> El {
                                 .on_press_tx(move |s: &mut Workspace, tx: &mut Tx| {
                                     s.perform(action.clone(), tx)
                                 })
-                                .child(glyph(&PLUS, 13., rgb(MUTED)))
+                                .child(glyph(&PLUS, 13., rgb(muted_color())))
                         })),
                 );
                 y += HEADER - if first { 4. } else { 0. } + 1.;
@@ -264,7 +264,7 @@ pub fn list_popup(s: &Workspace, viewport: [f32; 2]) -> El {
             row().px(12.).py(16.).child(
                 text("No matches. Try another name or create a session.")
                     .font(ui(13.))
-                    .color(rgb(MUTED)),
+                    .color(rgb(muted_color())),
             ),
         );
         y += 52.;
@@ -358,7 +358,7 @@ pub fn list_popup(s: &Workspace, viewport: [f32; 2]) -> El {
             row().h(26.).px(10.).center_y().child(
                 text(panel.title.clone())
                     .font(medium(11.5))
-                    .color(rgb(MUTED))
+                    .color(rgb(muted_color()))
                     .truncate(),
             ),
         );
@@ -386,7 +386,7 @@ pub fn list_popup(s: &Workspace, viewport: [f32; 2]) -> El {
                         .text_style(ui(13.))
                         .height(32.)
                         .plain()
-                        .trailing(text("esc").font(medium(10.5)).color(rgb(MUTED)))
+                        .trailing(text("esc").font(medium(10.5)).color(rgb(muted_color())))
                         .on_edit(|s: &mut Workspace| s.edit_input(0))
                         .on_change(|s: &mut Workspace, _: &mut Tx| s.query_changed())
                         .on_key(list_key)
@@ -440,9 +440,9 @@ fn rename_row(edit: &TextEdit, height: f32, current: bool, surface: &str) -> El 
         .radius(7.)
         .continuous_corners()
         .fill(white(0.05))
-        .border(1., rgb(ACCENT).alpha(0.55))
+        .border(1., rgb(accent_color()).alpha(0.55))
         .child(el().w(14.).center().child(if current {
-            glyph(&CHECK, 14., rgb(ACCENT))
+            glyph(&CHECK, 14., rgb(accent_color()))
         } else {
             el()
         }))
@@ -451,7 +451,7 @@ fn rename_row(edit: &TextEdit, height: f32, current: bool, surface: &str) -> El 
                 .text_style(medium(13.))
                 .height(height - 2.)
                 .plain()
-                .trailing(text("enter").font(medium(10.5)).color(rgb(MUTED)))
+                .trailing(text("enter").font(medium(10.5)).color(rgb(muted_color())))
                 .on_edit(|s: &mut Workspace| s.rename_input())
                 .on_key(rename_key)
                 .width(None)

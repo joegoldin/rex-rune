@@ -26,9 +26,9 @@ fn identity(s: &Workspace) -> El {
         .unwrap_or_else(|| "Choose session".into());
     // Only trouble is worth words: a healthy host shows just its name.
     let (detail, tone) = if model.connected {
-        (host.clone(), MUTED)
+        (host.clone(), muted_color())
     } else {
-        (format!("{host} · Reconnecting"), WARNING)
+        (format!("{host} · Reconnecting"), warning_color())
     };
     chip_press(chip(
         row()
@@ -55,17 +55,22 @@ fn identity(s: &Workspace) -> El {
             .child(el().size(22., 22.).center().child(glyph(
                 s.host_icon(s.active),
                 16.,
-                rgb(MUTED),
+                rgb(muted_color()),
             )))
             .child(
                 col()
                     .grow(1.)
                     .min_w(0.)
                     .gap(1.)
-                    .child(text(session).font(strong(12.5)).color(rgb(INK)).truncate())
+                    .child(
+                        text(session)
+                            .font(strong(12.5))
+                            .color(rgb(ink_color()))
+                            .truncate(),
+                    )
                     .child(text(detail).font(ui(10.5)).color(rgb(tone)).truncate()),
             )
-            .child(glyph(&CHEVRON, 14., rgb(MUTED))),
+            .child(glyph(&CHEVRON, 14., rgb(muted_color()))),
     ))
 }
 
@@ -138,7 +143,7 @@ fn tab_track(s: &Workspace) -> El {
             let mut icon = el().key(format!("tab-icon:{id}")).child(glyph(
                 program_icon(program),
                 15.,
-                rgb(if active { INK } else { MUTED }),
+                rgb(if active { ink_color() } else { muted_color() }),
             ));
             if let Some(program) = program {
                 icon = icon.help(program.to_owned());
@@ -147,7 +152,7 @@ fn tab_track(s: &Workspace) -> El {
             tab_el = tab_el.child(
                 text(label.clone())
                     .font(if active { medium(12.5) } else { ui(12.5) })
-                    .color(rgb(if active { INK } else { MUTED }))
+                    .color(rgb(if active { ink_color() } else { muted_color() }))
                     .truncate()
                     .help_when_truncated(label)
                     .shrink(),
@@ -231,7 +236,7 @@ fn bar_button(
     f: impl Fn(&mut Workspace, &mut Tx) + 'static,
 ) -> El {
     let hover = if danger {
-        rgb(DANGER).alpha(0.22)
+        rgb(danger_color()).alpha(0.22)
     } else {
         white(0.09)
     };
@@ -264,7 +269,7 @@ fn bar_button(
                         .fill(hover)
                         .group_opacity(0., 1.),
                 )
-                .child(glyph(i, 15., rgb(MUTED))),
+                .child(glyph(i, 15., rgb(muted_color()))),
         )
 }
 

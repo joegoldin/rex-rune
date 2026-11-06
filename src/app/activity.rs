@@ -98,9 +98,9 @@ pub fn program_icon(program: Option<&str>) -> &'static rune::Icon {
 /// the tab is seen. Idle and Working show nothing.
 pub fn tab_word(activity: &TabActivity, unseen_done: bool) -> Option<(&'static str, u32)> {
     match activity.state {
-        ProgramState::Blocked => Some((blocked_word(activity.kind), WARNING)),
-        ProgramState::Error => Some(("Error", DANGER)),
-        _ if unseen_done => Some(("Done", ACCENT)),
+        ProgramState::Blocked => Some((blocked_word(activity.kind), warning_color())),
+        ProgramState::Error => Some(("Error", danger_color())),
+        _ if unseen_done => Some(("Done", accent_color())),
         _ => None,
     }
 }

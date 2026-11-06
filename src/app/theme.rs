@@ -1,5 +1,4 @@
-//! Midnight: Rex's tokens, the kit pinned to them, shared surfaces (chips,
-//! glass, cards) and the app's icons.
+//! Per-window colour tokens, themed kits, shared surfaces and icons.
 use rune::{Color, El, Icon, Shadow, Spring, SpringPair, TextStyle, Transition};
 use rune_kit::{Kit, PaletteFocus, PaletteSeed};
 use std::sync::OnceLock;
@@ -51,19 +50,49 @@ pub fn inset(y: f32, color: Color) -> Shadow {
     }
 }
 
-pub const GROUND: u32 = 0x001528;
-/// The card, and the terminal's default background (the server's default black is replaced).
-/// The same navy as the ground, so a single pane and the toolbar read as one surface.
-pub const CARD: u32 = 0x001528;
-pub const POPOVER: u32 = 0x0d1524;
-pub const INK: u32 = 0xe8eef6;
-pub const MUTED: u32 = 0x93a3b8;
-pub const ACCENT: u32 = 0x7cc4ff;
-pub const ACCENT2: u32 = 0xa78bfa;
-pub const LIVE: u32 = 0x5eead4;
-pub const WARNING: u32 = 0xf5d48a;
-pub const DANGER: u32 = 0xff8a8a;
-pub const TERMINAL_SELECTION: u32 = 0x2f4a6e;
+thread_local! {
+    // Rune builds each window synchronously on its UI thread. Set at every root render,
+    // so separate windows and parallel headless runtimes do not share a theme.
+    static CURRENT: std::cell::Cell<rex_linux::theme::Theme> = Default::default();
+}
+
+pub fn set_current(theme: rex_linux::theme::Theme) {
+    CURRENT.set(theme);
+}
+
+pub fn ground_color() -> u32 {
+    CURRENT.get().colors().ground
+}
+pub fn card_color() -> u32 {
+    CURRENT.get().colors().card
+}
+pub fn popover_color() -> u32 {
+    CURRENT.get().colors().popover
+}
+pub fn ink_color() -> u32 {
+    CURRENT.get().colors().ink
+}
+pub fn muted_color() -> u32 {
+    CURRENT.get().colors().muted
+}
+pub fn accent_color() -> u32 {
+    CURRENT.get().colors().accent
+}
+pub fn accent2_color() -> u32 {
+    CURRENT.get().colors().accent2
+}
+pub fn live_color() -> u32 {
+    CURRENT.get().colors().live
+}
+pub fn warning_color() -> u32 {
+    CURRENT.get().colors().warning
+}
+pub fn danger_color() -> u32 {
+    CURRENT.get().colors().danger
+}
+pub fn terminal_selection_color() -> u32 {
+    CURRENT.get().colors().selection
+}
 
 pub const TOOLBAR: f32 = 52.;
 pub const GUTTER: f32 = 8.;
@@ -98,19 +127,28 @@ pub fn pop_in() -> Transition {
 }
 
 pub fn kit() -> &'static Kit {
-    static KIT: OnceLock<Kit> = OnceLock::new();
-    KIT.get_or_init(|| {
+    static MIDNIGHT: OnceLock<Kit> = OnceLock::new();
+    static GRUVBOX: OnceLock<Kit> = OnceLock::new();
+    let kit = match CURRENT.get() {
+        rex_linux::theme::Theme::Midnight => &MIDNIGHT,
+        rex_linux::theme::Theme::GruvboxDark => &GRUVBOX,
+    };
+    kit.get_or_init(|| {
         let mut k = Kit::from_palette_focus(
             PaletteSeed {
-                bg: rgb(GROUND),
-                fg: rgb(INK),
-                accent: rgb(ACCENT),
+                bg: rgb(ground_color()),
+                fg: rgb(ink_color()),
+                accent: rgb(accent_color()),
             },
-            PaletteFocus::Custom(rgb(ACCENT)),
+            PaletteFocus::Custom(rgb(accent_color())),
         );
         let c = &mut k.c;
-        (c.page, c.bg_base, c.surface_base) = (rgb(GROUND), rgb(GROUND), rgb(GROUND));
-        c.bg_deep = rgb(CARD);
+        (c.page, c.bg_base, c.surface_base) = (
+            rgb(ground_color()),
+            rgb(ground_color()),
+            rgb(ground_color()),
+        );
+        c.bg_deep = rgb(card_color());
         for slot in [
             &mut c.layer_01,
             &mut c.layer_02,
@@ -118,15 +156,16 @@ pub fn kit() -> &'static Kit {
             &mut c.surface_raised_base,
             &mut c.surface_float,
         ] {
-            *slot = rgb(POPOVER);
+            *slot = rgb(popover_color());
         }
         (c.hover, c.surface_hover, c.surface_raised_hover) =
             (white(0.07), white(0.07), white(0.07));
         c.pressed = white(0.11);
         (c.border_base, c.border_muted, c.border_weak) = (white(0.12), white(0.08), white(0.06));
         (c.border_strong, c.border_hover) = (white(0.2), white(0.2));
-        c.border_focus = rgb(ACCENT);
-        (c.text_base, c.text_strong, c.icon_base) = (rgb(INK), rgb(INK), rgb(INK));
+        c.border_focus = rgb(accent_color());
+        (c.text_base, c.text_strong, c.icon_base) =
+            (rgb(ink_color()), rgb(ink_color()), rgb(ink_color()));
         for slot in [
             &mut c.text_muted,
             &mut c.text_faint,
@@ -135,12 +174,12 @@ pub fn kit() -> &'static Kit {
             &mut c.icon_faint,
             &mut c.icon_weaker,
         ] {
-            *slot = rgb(MUTED);
+            *slot = rgb(muted_color());
         }
-        (c.text_accent, c.icon_accent) = (rgb(ACCENT), rgb(ACCENT));
-        c.success.fg = rgb(LIVE);
-        c.warning.fg = rgb(WARNING);
-        c.danger.fg = rgb(DANGER);
+        (c.text_accent, c.icon_accent) = (rgb(accent_color()), rgb(accent_color()));
+        c.success.fg = rgb(live_color());
+        c.warning.fg = rgb(warning_color());
+        c.danger.fg = rgb(danger_color());
         k.radius.sm = 8.;
         k.radius.md = 10.;
         k
@@ -172,7 +211,7 @@ pub fn chip(e: El) -> El {
 /// A popover or dialog surface: frosted navy with a lit rim and a deep shadow.
 pub fn glass(e: El, radius: f32, blur: bool) -> El {
     let e = e
-        .fill(rgb(POPOVER).alpha(0.95))
+        .fill(rgb(popover_color()).alpha(0.95))
         .border_gradient(1., white(0.16), white(0.05))
         .radius(radius)
         .continuous_corners()

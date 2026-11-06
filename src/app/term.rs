@@ -2,7 +2,7 @@
 //! and the cell grid, drawn on a fixed column grid.
 use super::{
     keys,
-    theme::{CARD, TERMINAL_SELECTION, mix, rgb},
+    theme::{mix, rgb, terminal_selection_color},
 };
 use rex_linux::{
     connection::{Command, Connection},
@@ -246,17 +246,14 @@ struct RunStyle {
     strike: bool,
 }
 impl RunStyle {
-    /// `default_bg` is the server's default background, which draws as the card colour
-    /// wherever it shows (inverse video's foreground included).
-    fn of(cell: &Cell, default_bg: u32) -> Self {
+    fn of(cell: &Cell) -> Self {
         let s = &cell.style;
-        let tint = |c: u32| if c == default_bg { CARD } else { c };
         Self {
             // Faint text is pre-mixed toward its cell in sRGB.
             fg: if s.faint {
-                mix(tint(cell.fg), tint(cell.bg), 0.65)
+                mix(cell.fg, cell.bg, 0.65)
             } else {
-                tint(cell.fg)
+                cell.fg
             },
             bold: s.bold,
             italic: s.italic,
@@ -438,7 +435,7 @@ fn row_el(cells: &[Cell], y: f32, frame_bg: u32, sel: Option<(usize, usize)>, m:
         row = row.child(
             el().absolute(a as f32 * cw, 0.)
                 .size((b + 1 - a) as f32 * cw, ch)
-                .fill(rgb(TERMINAL_SELECTION)),
+                .fill(rgb(terminal_selection_color())),
         );
     }
     let mut segment: Option<Segment> = None;
@@ -446,7 +443,7 @@ fn row_el(cells: &[Cell], y: f32, frame_bg: u32, sel: Option<(usize, usize)>, m:
         if cell.spacer_tail {
             continue;
         }
-        let style = RunStyle::of(cell, frame_bg);
+        let style = RunStyle::of(cell);
         let text = if cell.text.is_empty() {
             " "
         } else {
@@ -491,7 +488,7 @@ pub fn grid(key: &str, term: &Term, m: &Metrics, look: GridLook) -> El {
     let start = frame.display_row_start(visible);
     let cols = frame.cols as usize;
     let selection = term.selection.map(|(a, b)| (a.min(b), a.max(b)));
-    let mut grid = el().w_full().h_full().instant_changes();
+    let mut grid = el().w_full().h_full().fill(rgb(frame.bg)).instant_changes();
     for (y, cells) in frame.cells.iter().enumerate().skip(start).take(visible) {
         let sel = selection.and_then(|(a, b)| {
             let (row0, row1) = (y * cols, y * cols + cols - 1);
@@ -501,7 +498,15 @@ pub fn grid(key: &str, term: &Term, m: &Metrics, look: GridLook) -> El {
         for cell in cells {
             hash_cell(cell, &mut h);
         }
-        (sel, frame.bg, cw.to_bits(), ch.to_bits(), m.style).hash(&mut h);
+        (
+            sel,
+            frame.bg,
+            terminal_selection_color(),
+            cw.to_bits(),
+            ch.to_bits(),
+            m.style,
+        )
+            .hash(&mut h);
         let top = (y - start) as f32 * ch;
         let id = format!("{key}/r{}", y - start);
         grid = grid.child(memo(id, h.finish(), || {
@@ -532,8 +537,8 @@ pub fn grid(key: &str, term: &Term, m: &Metrics, look: GridLook) -> El {
             && let Some(cell) = cell.filter(|c| !c.text.is_empty())
         {
             let style = RunStyle {
-                fg: CARD,
-                ..RunStyle::of(cell, frame.bg)
+                fg: frame.bg,
+                ..RunStyle::of(cell)
             };
             grid = grid.child(glyph_run(cell.text.clone(), style, px, py, m));
         }
@@ -550,7 +555,7 @@ pub fn grid(key: &str, term: &Term, m: &Metrics, look: GridLook) -> El {
                 .no_wrap()
                 .font(m.style)
                 .color(rgb(frame.fg))
-                .fill(rgb(CARD))
+                .fill(rgb(frame.bg))
                 .absolute(px, py),
             );
         }

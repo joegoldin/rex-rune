@@ -94,7 +94,7 @@ fn header(s: &Workspace, block: &str, width: f32, focused: bool, m: &Metrics) ->
         .child(
             text(label.clone())
                 .font(medium(11.5))
-                .color(rgb(if focused { INK } else { MUTED }))
+                .color(rgb(if focused { ink_color() } else { muted_color() }))
                 .truncate()
                 .help_when_truncated(label)
                 .shrink(),
@@ -134,15 +134,15 @@ fn strip(s: &Workspace, block: &str, width: f32, m: &Metrics) -> Option<El> {
             .gap(8.)
             .center_y()
             .radius(11.)
-            .fill(rgb(mix(WARNING, CARD, 0.1)))
-            .border(1., rgb(WARNING).alpha(0.35))
+            .fill(rgb(mix(warning_color(), card_color(), 0.1)))
+            .border(1., rgb(warning_color()).alpha(0.35))
             .shrink()
             .min_w(0.);
         if width >= 360. {
             p = p.child(
                 text(msg)
                     .font(medium(11.))
-                    .color(rgb(WARNING))
+                    .color(rgb(warning_color()))
                     .truncate()
                     .shrink()
                     .help(status_text),
@@ -182,7 +182,7 @@ fn card(
         .key(format!("pane:{block}"))
         .absolute(rect[0], rect[1])
         .size(rect[2], rect[3])
-        .fill(rgb(CARD))
+        .fill(rgb(card_color()))
         .motion(SNAPPY)
         // Cards appear and leave at once (a tab or session switch never crossfades terminals);
         // only a card that stays springs to its new place.
@@ -197,13 +197,16 @@ fn card(
             .clip_rounded(CARD_RADIUS);
         c = match state {
             CardState::Focused => c
-                .border_gradient(1., rgb(ACCENT).alpha(0.85), rgb(ACCENT).alpha(0.5))
-                .box_shadow(shadow(0., 0., 24., rgb(ACCENT).alpha(0.2)))
+                .border_gradient(
+                    1.,
+                    rgb(accent_color()).alpha(0.85),
+                    rgb(accent_color()).alpha(0.5),
+                )
+                .box_shadow(shadow(0., 0., 24., rgb(accent_color()).alpha(0.2)))
                 .box_shadow(shadow(0., 14., 40., black(0.55))),
-            CardState::Target => {
-                c.border(1., rgb(ACCENT).alpha(0.85))
-                    .box_shadow(shadow(0., 10., 30., black(0.45)))
-            }
+            CardState::Target => c
+                .border(1., rgb(accent_color()).alpha(0.85))
+                .box_shadow(shadow(0., 10., 30., black(0.45))),
             CardState::Plain => c
                 .border_gradient(1., white(0.10), white(0.035))
                 .box_shadow(shadow(0., 10., 30., black(0.45))),
@@ -393,7 +396,7 @@ fn card(
                     "Waiting for host…"
                 })
                 .font(ui(13.))
-                .color(rgb(MUTED)),
+                .color(rgb(muted_color())),
             ),
         ),
     };
@@ -442,11 +445,11 @@ fn empty(s: &Workspace) -> El {
             false,
         )
         .child(super::widgets::app_logo(s, 44.))
-        .child(text(title).font(strong(18.)).color(rgb(INK)))
+        .child(text(title).font(strong(18.)).color(rgb(ink_color())))
         .child(
             text(detail)
                 .font(ui(13.))
-                .color(rgb(MUTED))
+                .color(rgb(muted_color()))
                 .wrap()
                 .max_w(360.)
                 .align(rune::Align::Center),
@@ -598,8 +601,12 @@ pub fn divider_handle(e: El, vertical_line: bool, dragging: bool) -> El {
     };
     let line = line.radius(1.);
     let line = if dragging {
-        line.fill(rgb(ACCENT))
-            .box_shadow(shadow(0., 0., 10., rgb(ACCENT).alpha(0.5)))
+        line.fill(rgb(accent_color())).box_shadow(shadow(
+            0.,
+            0.,
+            10.,
+            rgb(accent_color()).alpha(0.5),
+        ))
     } else {
         line.fill(white(0.18)).group_opacity(0., 1.)
     };

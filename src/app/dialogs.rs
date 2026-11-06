@@ -41,7 +41,7 @@ pub fn modal_frame(s: &Workspace, surface: El) -> El {
 }
 
 fn title(t: &str) -> El {
-    text(t.to_owned()).font(strong(17.)).color(rgb(INK))
+    text(t.to_owned()).font(strong(17.)).color(rgb(ink_color()))
 }
 
 fn form(s: &Workspace, form: &Form) -> El {
@@ -63,7 +63,7 @@ fn form(s: &Workspace, form: &Form) -> El {
         body = body.child(
             text(error.clone())
                 .font(ui(13.))
-                .color(rgb(DANGER))
+                .color(rgb(danger_color()))
                 .key("form-error"),
         );
     }
@@ -71,7 +71,7 @@ fn form(s: &Workspace, form: &Form) -> El {
         body = body.child(
             text("A new endpoint connects to a different server; sessions on the old one keep running. The shell applies to new sessions, tabs and splits.")
                 .font(ui(12.))
-                .color(rgb(MUTED))
+                .color(rgb(muted_color()))
                 .wrap(),
         );
     }
@@ -79,7 +79,7 @@ fn form(s: &Workspace, form: &Form) -> El {
         body = body.child(
             text("Used for new sessions, tabs and splits on this host. Running terminals are unchanged.")
                 .font(ui(12.))
-                .color(rgb(MUTED))
+                .color(rgb(muted_color()))
                 .wrap(),
         );
     }
@@ -120,7 +120,7 @@ fn confirm_with(panel_title: &str, description: &str, keep: &str, danger: &str) 
         .child(
             text(description.to_owned())
                 .font(ui(13.))
-                .color(rgb(MUTED))
+                .color(rgb(muted_color()))
                 .wrap(),
         )
         .child(
@@ -182,19 +182,19 @@ fn toast(key: String, message: String, close: impl Fn(&mut Workspace) + 'static)
         12.,
         false,
     )
-    .fill(rgb(POPOVER).alpha(0.96))
+    .fill(rgb(popover_color()).alpha(0.96))
     .transition(pop_in())
     .preserve_focus_on_press(true)
     .child(
         el().size(7., 7.)
             .radius(3.5)
-            .fill(rgb(WARNING))
-            .box_shadow(shadow(0., 0., 8., rgb(WARNING).alpha(0.6))),
+            .fill(rgb(warning_color()))
+            .box_shadow(shadow(0., 0., 8., rgb(warning_color()).alpha(0.6))),
     )
     .child(
         text(message)
             .font(ui(12.5))
-            .color(rgb(INK))
+            .color(rgb(ink_color()))
             .wrap()
             .grow(1.)
             .shrink(),
@@ -210,7 +210,7 @@ fn toast(key: String, message: String, close: impl Fn(&mut Workspace) + 'static)
             .cursor(Cursor::Pointer)
             .preserve_focus_on_press(true)
             .on_press(close)
-            .child(glyph(&CLOSE, 13., rgb(MUTED))),
+            .child(glyph(&CLOSE, 13., rgb(muted_color()))),
     )
 }
 

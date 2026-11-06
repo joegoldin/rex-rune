@@ -20,7 +20,11 @@ fn host_header(s: &Workspace, index: usize) -> El {
     let connected = s.hosts[index].model.connected;
     let active = index == s.active;
     // An offline host dims; its Retry connection row below says why.
-    let tone = rgb(if active && connected { INK } else { MUTED });
+    let tone = rgb(if active && connected {
+        ink_color()
+    } else {
+        muted_color()
+    });
     let new_help = format!("New session on {}", config.label);
     // One step to a new session; offline hosts keep the slot so the column lines up.
     let plus = if connected {
@@ -40,7 +44,7 @@ fn host_header(s: &Workspace, index: usize) -> El {
                 s.create_session(index, None, tx);
                 tx.blur();
             })
-            .child(glyph(&PLUS, 13., rgb(MUTED)))
+            .child(glyph(&PLUS, 13., rgb(muted_color())))
     } else {
         el().key(format!("host-new-session-slot:{index}"))
             .size(22., 22.)
@@ -81,7 +85,7 @@ fn host_header(s: &Workspace, index: usize) -> El {
                 .child(glyph(
                     if config.collapsed { &RIGHT } else { &CHEVRON },
                     13.,
-                    rgb(MUTED),
+                    rgb(muted_color()),
                 )),
         )
         .child(
@@ -169,18 +173,26 @@ fn session_row(s: &Workspace, index: usize, id: &str, label: &str) -> El {
         .child(glyph(
             &TERMINAL,
             14.,
-            rgb(if selected { ACCENT } else { MUTED }),
+            rgb(if selected {
+                accent_color()
+            } else {
+                muted_color()
+            }),
         ))
         .child(
             text(label.to_owned())
                 .font(if selected { medium(13.) } else { ui(13.) })
-                .color(rgb(if selected { INK } else { MUTED }))
+                .color(rgb(if selected { ink_color() } else { muted_color() }))
                 .truncate()
                 .grow(1.)
                 .shrink(),
         );
     if let Some(count) = count {
-        e = e.child(text(count.to_string()).font(medium(10.5)).color(rgb(MUTED)));
+        e = e.child(
+            text(count.to_string())
+                .font(medium(10.5))
+                .color(rgb(muted_color())),
+        );
     }
     if targeted {
         // An overlay, so the outline never shifts the row; above the selected fill.
@@ -189,7 +201,7 @@ fn session_row(s: &Workspace, index: usize, id: &str, label: &str) -> El {
                 .pin(Some(0.), Some(0.), Some(0.), Some(0.))
                 .radius(9.)
                 .continuous_corners()
-                .border(1.5, rgb(ACCENT)),
+                .border(1.5, rgb(accent_color())),
         );
     }
     e
@@ -227,11 +239,11 @@ fn new_session(s: &Workspace, index: usize) -> El {
             s.perform(Intent::CreateOn(index, None), tx);
             tx.blur();
         })
-        .child(glyph(&PLUS, 14., rgb(ACCENT)))
+        .child(glyph(&PLUS, 14., rgb(accent_color())))
         .child(
             text("New session")
                 .font(medium(12.5))
-                .color(rgb(ACCENT))
+                .color(rgb(accent_color()))
                 .truncate(),
         )
 }
@@ -256,14 +268,14 @@ pub fn sidebar(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
                     group = group.child(new_session(s, index));
                     height += SESSION_ROW + 2.;
                 } else {
-                    group = group.child(note("Waiting for connection…", MUTED));
+                    group = group.child(note("Waiting for connection…", muted_color()));
                     height += NOTE_ROW;
                 }
             }
             if !host.model.connected {
                 let status = host.model.status.clone();
                 group = group.child(
-                    note("Retry connection", ACCENT)
+                    note("Retry connection", accent_color())
                         .key(format!("retry-host:{index}"))
                         .role("button")
                         .radius(9.)
@@ -326,14 +338,14 @@ pub fn sidebar(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
                 s.picker(true);
                 tx.blur();
             })
-            .child(glyph(&SEARCH, 14., rgb(MUTED)))
+            .child(glyph(&SEARCH, 14., rgb(muted_color())))
             .child(
                 text("Find a session")
                     .font(ui(12.5))
-                    .color(rgb(MUTED))
+                    .color(rgb(muted_color()))
                     .grow(1.),
             )
-            .child(text("⌃K").font(medium(10.5)).color(rgb(MUTED))),
+            .child(text("⌃K").font(medium(10.5)).color(rgb(muted_color()))),
     );
     let mut panel = col()
         .w_full()
@@ -351,7 +363,12 @@ pub fn sidebar(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
                 .pl(14.)
                 .pr(6.)
                 .center_y()
-                .child(text("Sessions").font(strong(13.)).color(rgb(INK)).grow(1.))
+                .child(
+                    text("Sessions")
+                        .font(strong(13.))
+                        .color(rgb(ink_color()))
+                        .grow(1.),
+                )
                 .child(chrome_button(
                     "new-session",
                     &PLUS,
@@ -385,13 +402,13 @@ pub fn sidebar(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
                     .cursor(Cursor::Pointer)
                     .preserve_focus_on_press(true)
                     .on_press_tx(|s: &mut Workspace, tx: &mut Tx| s.perform(Intent::AddHost, tx))
-                    .child(glyph(&PLUS, 14., rgb(MUTED)))
-                    .child(text("Add host").font(ui(12.)).color(rgb(MUTED))),
+                    .child(glyph(&PLUS, 14., rgb(muted_color())))
+                    .child(text("Add host").font(ui(12.)).color(rgb(muted_color()))),
             )
             .child(
                 text(format!("{total} sessions"))
                     .font(ui(11.))
-                    .color(rgb(MUTED))
+                    .color(rgb(muted_color()))
                     .pr(6.),
             ),
     );
