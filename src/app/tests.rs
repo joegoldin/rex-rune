@@ -1569,3 +1569,87 @@ fn a_missing_rex_explains_itself_and_naming_reapplies_to_installed_agents() {
     assert!(preview.contains(&"--dry-run".to_owned()));
     std::fs::remove_file(&ws.settings_path).ok();
 }
+
+#[test]
+fn sidebar_open_and_closed_state_survives_a_new_window() {
+    let mut ws = workspace();
+    assert!(!ws.sidebar.is_open());
+    ws.toggle_sidebar();
+    let reopen = |ws: &Workspace| {
+        Workspace::new(
+            ws.options.clone(),
+            Settings::load(&ws.settings_path).unwrap(),
+            ws.settings_path.clone(),
+            ws.handle.clone(),
+            None,
+        )
+    };
+    let mut next = reopen(&ws);
+    assert!(
+        next.sidebar.is_open(),
+        "a new window forgot the open sidebar"
+    );
+    next.toggle_sidebar();
+    assert!(
+        !reopen(&next).sidebar.is_open(),
+        "a new window forgot the closed sidebar"
+    );
+    std::fs::remove_file(&ws.settings_path).ok();
+}
+
+#[test]
+fn sidebar_tabs_are_persisted_and_select_their_own_session_window() {
+    let (mut ws, rx) = tabbed_workspace("single");
+    let mut other = ws.hosts[0].model.views["s"].clone();
+    other.session_id = Some("other".into());
+    other.active_window_id = Some("other-first".into());
+    for (window, id) in other
+        .windows
+        .iter_mut()
+        .zip(["other-first", "other-second"])
+    {
+        window.window_id = Some(id.into());
+    }
+    ws.hosts[0].model.sessions.push(session("other"));
+    ws.hosts[0].model.views.insert("other".into(), other);
+    ws.set_vertical_tabs(true);
+    let saved = Settings::load(&ws.settings_path).unwrap();
+    assert!(saved.vertical_tabs && saved.sidebar_open);
+    let mut rt = runtime(ws);
+    for _ in 0..60 {
+        rt.frame(1. / 60.);
+    }
+    assert!(
+        !has(&rt, "tab-track"),
+        "horizontal tabs must not be duplicated"
+    );
+    assert!(has(&rt, "sidebar-tab:0:s:single"));
+    assert!(has(&rt, "sidebar-tab:0:other:other-second"));
+    click(&mut rt, "sidebar-tab:0:other:other-second");
+    let sent = requests(&rx);
+    assert_eq!(sent.len(), 1);
+    assert_eq!(
+        (
+            &sent[0].0,
+            &sent[0].1,
+            sent[0].2["window_id"].as_str().unwrap()
+        ),
+        (
+            &"session.focus_window".to_owned(),
+            &"other".to_owned(),
+            "other-second"
+        )
+    );
+    rt.update(|s, _| s.set_vertical_tabs(false));
+    for _ in 0..60 {
+        rt.frame(1. / 60.);
+    }
+    assert!(has(&rt, "tab-track"));
+    assert!(!has(&rt, "sidebar-tab:0:s:single"));
+    assert!(
+        !Settings::load(&rt.state.settings_path)
+            .unwrap()
+            .vertical_tabs
+    );
+    std::fs::remove_file(&rt.state.settings_path).ok();
+}

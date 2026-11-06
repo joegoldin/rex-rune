@@ -163,13 +163,25 @@ fn interface(s: &Workspace) -> El {
         .child(divider())
         .child(setting(
             "Session sidebar",
-            "Hosts and their sessions beside the terminals. Ctrl Shift B.",
+            "Hosts and sessions beside the terminals. Remembered for new windows. Ctrl Shift B.",
             Switch::new(s.sidebar.is_open())
                 .label("Show session sidebar")
                 .hide_label()
                 .on_toggle_tx(|s: &mut Workspace, tx: &mut Tx| s.perform(Intent::Sidebar, tx))
                 .build(k)
                 .key("sidebar-switch"),
+        ))
+        .child(setting(
+            "Tab position",
+            "Top bar, or tabs grouped under each host and session in the sidebar.",
+            SegmentedControl::new(
+                &["Top", "Sidebar"],
+                Some(usize::from(s.settings.vertical_tabs)),
+            )
+            .fit()
+            .on_pick(|s: &mut Workspace, i, _| s.set_vertical_tabs(i == 1))
+            .build(k)
+            .key("tab-position"),
         ))
         .child(divider())
         .child(setting(

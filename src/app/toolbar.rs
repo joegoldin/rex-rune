@@ -286,7 +286,11 @@ pub fn toolbar(s: &Workspace) -> El {
             |s, tx| s.perform(Intent::Sidebar, tx),
         ))
         .child(identity(s))
-        .child(tab_track(s))
+        .child(if s.settings.vertical_tabs {
+            el()
+        } else {
+            tab_track(s)
+        })
         // Always at least 48pt of window to drag, outside the tabs.
         .child(el().key("title-drag").grow(1.).min_w(48.).h_full())
         .child(

@@ -494,6 +494,11 @@ async fn activity_follows_every_session_and_queries_the_selected_one() {
             json!({"foreground":{"name":"node","argv0":"codex"}}),
         )
         .await;
+        // Global navigation fetches hidden session metadata without attaching it.
+        let view = recv(&mut ws).await;
+        assert_eq!(view["method"], "session.view");
+        assert_eq!(view["payload"]["session_id"], OTHER);
+        send(&mut ws, json!({"type":"response","id":view["id"],"error":{"code":"conflict","message":"no","status":409}})).await;
         // attach_all replaces the scope, so after session_created it must still ask for all.
         send(&mut ws, json!({"type":"event","seq":5,"payload":{"type":"session_created","payload":{"session_id":OTHER}}})).await;
         let list = recv(&mut ws).await;
@@ -507,7 +512,8 @@ async fn activity_follows_every_session_and_queries_the_selected_one() {
             {"session_id":OTHER,"label":"other"}]}),
         )
         .await;
-        // A report from an unattached session: its view is fetched once to place it.
+        // Reports from an unattached session still arrive. A failed metadata fetch
+        // is not retried on every report or idle tick.
         let report = |seq: u64| {
             json!({"type":"event","seq":seq,"payload":{"type":"session_event","payload":{
             "session_id":OTHER,"event":{"type":"block_event","payload":{"block_id":"block:z",
@@ -515,10 +521,6 @@ async fn activity_follows_every_session_and_queries_the_selected_one() {
                 "payload":{"id":"","record":{"state":"working"}}}}}}})
         };
         send(&mut ws, report(7)).await;
-        let view = recv(&mut ws).await;
-        assert_eq!(view["method"], "session.view");
-        assert_eq!(view["payload"]["session_id"], OTHER);
-        send(&mut ws, json!({"type":"response","id":view["id"],"error":{"code":"conflict","message":"no","status":409}})).await;
         send(&mut ws, report(8)).await;
         // No second session.view: the next message is the client closing.
         assert!(matches!(ws.next().await, Some(Ok(Message::Close(_)))));

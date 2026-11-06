@@ -335,8 +335,12 @@ impl Workspace {
 
     /// Whether `window` on the active host shows "Done" until seen.
     pub fn unseen(&self, window: &str) -> bool {
+        self.unseen_on(self.active, window)
+    }
+
+    pub fn unseen_on(&self, host: usize, window: &str) -> bool {
         self.unseen_done
-            .contains(&(self.hosts[self.active].id, window.to_owned()))
+            .contains(&(self.hosts[host].id, window.to_owned()))
     }
 }
 

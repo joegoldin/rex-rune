@@ -1,6 +1,7 @@
 //! The optional host → session sidebar. It slides in and out; rows activate on click only
 //! (keyboard session navigation is the Ctrl K switcher, so arrows never switch sessions).
 use super::{
+    activity::{program_icon, tab_activity, tab_name, tab_word},
     panel::Intent,
     panes::divider_handle,
     theme::*,
@@ -134,7 +135,11 @@ fn session_row(s: &Workspace, index: usize, id: &str, label: &str) -> El {
         } else {
             label.to_owned()
         })
-        .h(SESSION_ROW)
+        .h(if s.settings.vertical_tabs {
+            24.
+        } else {
+            SESSION_ROW
+        })
         .px(10.)
         .gap(10.)
         .center_y()
@@ -150,7 +155,7 @@ fn session_row(s: &Workspace, index: usize, id: &str, label: &str) -> El {
         .on_secondary_press(move |s: &mut Workspace, p, _| {
             s.session_menu(index, menu_id.clone(), (p.x, p.y))
         });
-    if selected {
+    if selected && !s.settings.vertical_tabs {
         e = e.child(
             el().pin(Some(0.), Some(0.), Some(0.), Some(0.))
                 .radius(9.)
@@ -166,15 +171,25 @@ fn session_row(s: &Workspace, index: usize, id: &str, label: &str) -> El {
         e = e.hover(white(0.05));
     }
     e = e
-        .child(glyph(
-            &TERMINAL,
-            14.,
-            rgb(if selected { ACCENT } else { MUTED }),
-        ))
+        .child(if s.settings.vertical_tabs {
+            el()
+        } else {
+            glyph(&TERMINAL, 14., rgb(if selected { ACCENT } else { MUTED }))
+        })
         .child(
             text(label.to_owned())
-                .font(if selected { medium(13.) } else { ui(13.) })
-                .color(rgb(if selected { INK } else { MUTED }))
+                .font(if s.settings.vertical_tabs {
+                    medium(11.5)
+                } else if selected {
+                    medium(13.)
+                } else {
+                    ui(13.)
+                })
+                .color(rgb(if selected && !s.settings.vertical_tabs {
+                    INK
+                } else {
+                    MUTED
+                }))
                 .truncate()
                 .grow(1.)
                 .shrink(),
@@ -193,6 +208,67 @@ fn session_row(s: &Workspace, index: usize, id: &str, label: &str) -> El {
         );
     }
     e
+}
+
+fn window_row(s: &Workspace, index: usize, session: &str, tab: &rexrs::api::session::Window) -> El {
+    let Some(id) = tab.window_id.as_deref() else {
+        return el();
+    };
+    let model = &s.hosts[index].model;
+    let active = index == s.active
+        && model.selected.as_deref() == Some(session)
+        && model
+            .views
+            .get(session)
+            .is_some_and(|v| v.active_window_id.as_deref() == Some(id));
+    let activity = tab_activity(model, tab);
+    let label = tab_name(model, tab);
+    let (target_session, target_window) = (session.to_owned(), id.to_owned());
+    let mut row = row()
+        .key(format!("sidebar-tab:{index}:{session}:{id}"))
+        .role("tab")
+        .label(label.clone())
+        .h(32.)
+        .ml(12.)
+        .pl(10.)
+        .pr(8.)
+        .gap(8.)
+        .center_y()
+        .radius(10.)
+        .continuous_corners()
+        .cursor(Cursor::Pointer)
+        .preserve_focus_on_press(true)
+        .help_when_truncated(label.clone())
+        .on_press_tx(move |s: &mut Workspace, tx: &mut Tx| {
+            s.select_window(index, target_session.clone(), target_window.clone(), tx);
+            tx.blur();
+        })
+        .child(glyph(
+            program_icon(activity.program.as_deref()),
+            15.,
+            rgb(if active { INK } else { MUTED }),
+        ))
+        .child(
+            text(label)
+                .font(if active { medium(12.5) } else { ui(12.5) })
+                .color(rgb(if active { INK } else { MUTED }))
+                .truncate()
+                .grow(1.)
+                .min_w(0.),
+        );
+    if active {
+        row = row
+            .fill(white(0.11))
+            .border_gradient(1., white(0.15), white(0.04));
+    } else {
+        row = row.hover(white(0.05));
+    }
+    if s.settings.notifications.show_in_tabs
+        && let Some((word, tone)) = tab_word(&activity, s.unseen_on(index, id))
+    {
+        row = row.child(text(word).font(medium(10.5)).color(rgb(tone)));
+    }
+    row
 }
 
 fn note(text_: &str, color: u32) -> El {
@@ -249,7 +325,21 @@ pub fn sidebar(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
         if !config.collapsed {
             for session in &host.model.sessions {
                 group = group.child(session_row(s, index, &session.session_id, &session.label));
-                height += SESSION_ROW + 2.;
+                height += if s.settings.vertical_tabs {
+                    26.
+                } else {
+                    SESSION_ROW + 2.
+                };
+                if s.settings.vertical_tabs
+                    && let Some(view) = host.model.views.get(&session.session_id)
+                {
+                    for tab in &view.windows {
+                        if tab.window_id.is_some() {
+                            group = group.child(window_row(s, index, &session.session_id, tab));
+                            height += 34.;
+                        }
+                    }
+                }
             }
             if host.model.sessions.is_empty() {
                 if host.model.connected {

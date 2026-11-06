@@ -1025,7 +1025,19 @@ async fn run_host(
             query_activity(&mut control, shared, &mut state, &workers).await;
             retry = 0;
             loop {
+                let unviewed = {
+                    let model = shared.model.lock().expect("host model");
+                    model.sessions.iter().find(|s| !model.views.contains_key(&s.session_id) && !state.viewed.contains(&s.session_id)).map(|s| s.session_id.clone())
+                };
                 tokio::select! {
+                    // Populate the global tab order without attaching hidden sessions
+                    // or delaying the selected pane's first data ticket.
+                    _ = tokio::time::sleep(Duration::from_millis(25)), if unviewed.is_some() => {
+                        if let Some(id) = unviewed {
+                            state.viewed.insert(id.clone());
+                            let _ = refresh(&mut control, shared, &mut state, &id).await;
+                        }
+                    }
                     event = control.next_event() => {
                         handle_event(event?, &mut control, shared, &mut workers, &mut state).await?;
                         state.prune(&shared.model.lock().expect("host model"));

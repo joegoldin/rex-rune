@@ -139,11 +139,10 @@ impl Workspace {
         if options.font_size != 15. {
             settings.font_size = options.font_size;
         }
-        // Every launch starts with the sidebar collapsed; only its width is remembered.
-        let sidebar = rune_kit::PaneState::new(236.)
+        let mut sidebar = rune_kit::PaneState::new(236.)
             .range(200., 360.)
-            .with_width(settings.sidebar_width)
-            .collapsed();
+            .with_width(settings.sidebar_width);
+        sidebar.set_open(settings.sidebar_open);
         let mut this = Self {
             logo: None,
             options,
@@ -536,6 +535,7 @@ impl Workspace {
             .get(self.active)
             .map(|h| h.endpoint.clone());
         self.settings.sidebar_width = self.sidebar.width();
+        self.settings.sidebar_open = self.sidebar.is_open();
         if let Err(error) = self.settings.save(&self.settings_path) {
             self.notify(format!("Preferences not saved: {error:#}"));
         }
@@ -612,6 +612,33 @@ impl Workspace {
         for index in 0..self.hosts.len() {
             self.send(index, HostCommand::Visibility(index == self.active));
         }
+    }
+
+    pub fn select_window(&mut self, host: usize, session: String, window: String, tx: &mut Tx) {
+        self.active = host;
+        self.drag = None;
+        self.settings.hosts[host].collapsed = false;
+        self.update_visibility();
+        if self.hosts[host].model.selected.as_ref() != Some(&session) {
+            self.send(host, HostCommand::Select(session.clone()));
+        }
+        self.send(
+            host,
+            HostCommand::Request {
+                method: "session.focus_window".into(),
+                payload: json!({"session_id": session, "window_id": window}),
+            },
+        );
+        self.save();
+        self.update_title(tx);
+    }
+
+    pub fn set_vertical_tabs(&mut self, vertical: bool) {
+        self.settings.vertical_tabs = vertical;
+        if vertical {
+            self.sidebar.set_open(true);
+        }
+        self.save();
     }
 
     pub fn toggle_sidebar(&mut self) {
