@@ -189,7 +189,58 @@ pub struct Frame {
     pub mouse_tracking: bool,
 }
 
+#[derive(Clone, Copy, Default, PartialEq)]
+pub enum SelectionUnit {
+    #[default]
+    Cell,
+    Word,
+    Line,
+}
+
 impl Frame {
+    /// Inclusive cell bounds, preserving wide glyphs and whole words/paths.
+    pub fn selection_range(&self, index: usize, unit: SelectionUnit) -> Option<(usize, usize)> {
+        let cols = self.cols as usize;
+        let row = index / cols;
+        let cells = self.cells.get(row)?;
+        let mut start = index % cols;
+        cells.get(start)?;
+        while start > 0 && cells[start].spacer_tail {
+            start -= 1;
+        }
+        let mut end = start;
+        if cells.get(end + 1).is_some_and(|c| c.spacer_tail) {
+            end += 1;
+        }
+        match unit {
+            SelectionUnit::Cell => {}
+            SelectionUnit::Line => {
+                start = 0;
+                end = cells.len() - 1;
+            }
+            SelectionUnit::Word => {
+                let kind = |mut col: usize| {
+                    while col > 0 && cells[col].spacer_tail {
+                        col -= 1;
+                    }
+                    match cells[col].text.chars().next() {
+                        None => 0,
+                        Some(c) if c.is_whitespace() => 0,
+                        Some(c) if c.is_alphanumeric() || "_-.~/\\:@%+=".contains(c) => 1,
+                        Some(_) => 2,
+                    }
+                };
+                let selected = kind(start);
+                while start > 0 && kind(start - 1) == selected {
+                    start -= 1;
+                }
+                while end + 1 < cells.len() && kind(end + 1) == selected {
+                    end += 1;
+                }
+            }
+        }
+        Some((row * cols + start, row * cols + end))
+    }
     /// Local viewport cropping must retain the newest rows, or the cursor when
     /// a TUI has positioned it above them. This never changes the server size.
     pub fn display_row_start(&self, visible_rows: usize) -> usize {
@@ -288,6 +339,32 @@ impl Renderer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn word_and_line_selection_preserve_paths_unicode_and_wide_cells() {
+        let mut terminal = Terminal::new(ghostty_vt::TerminalOptions {
+            cols: 40,
+            rows: 3,
+            ..Default::default()
+        })
+        .unwrap();
+        terminal.vt_write("alpha /tmp/beta-gamma.txt 世界\r\ne\u{301} 🦀 tail".as_bytes());
+        let frame = Renderer::new().unwrap().frame(&terminal).unwrap();
+        let word = frame.selection_range(12, SelectionUnit::Word).unwrap();
+        assert_eq!(frame.selected_text(word.0, word.1), "/tmp/beta-gamma.txt");
+        let wide = frame.selection_range(27, SelectionUnit::Cell).unwrap();
+        assert_eq!(wide, (26, 27));
+        assert_eq!(frame.selected_text(wide.0, wide.1), "世");
+        let word = frame.selection_range(27, SelectionUnit::Word).unwrap();
+        assert_eq!(frame.selected_text(word.0, word.1), "世界");
+        let combining = frame.selection_range(40, SelectionUnit::Word).unwrap();
+        assert_eq!(frame.selected_text(combining.0, combining.1), "e\u{301}");
+        let emoji = frame.selection_range(43, SelectionUnit::Cell).unwrap();
+        assert_eq!(frame.selected_text(emoji.0, emoji.1), "🦀");
+        let line = frame.selection_range(43, SelectionUnit::Line).unwrap();
+        assert_eq!(frame.selected_text(line.0, line.1), "e\u{301} 🦀 tail");
+        assert!(frame.selection_range(120, SelectionUnit::Word).is_none());
+    }
+
     #[test]
     fn cropped_snapshot_keeps_cursor_and_copy_coordinates() {
         let mut terminal = Terminal::new(ghostty_vt::TerminalOptions {

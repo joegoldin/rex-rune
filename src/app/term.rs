@@ -6,7 +6,7 @@ use super::{
 };
 use rex_linux::{
     connection::{Command, Connection},
-    terminal::{Cell, Frame},
+    terminal::{Cell, Frame, SelectionUnit},
 };
 use rune::{El, Family, Mods, Span, TextStyle, el, memo, rich, text};
 use serde_json::json;
@@ -24,6 +24,8 @@ pub struct Term {
     /// The grid's rect in window points (inside the padding).
     pub rect: [f32; 4],
     pub selection: Option<(usize, usize)>,
+    selection_anchor: Option<(usize, usize)>,
+    selection_unit: SelectionUnit,
     pub preedit: String,
     pub notice: Option<String>,
     pub scroll: f32,
@@ -82,6 +84,8 @@ impl Term {
             last_size: None,
             rect: [0.; 4],
             selection: None,
+            selection_anchor: None,
+            selection_unit: SelectionUnit::Cell,
             preedit: String::new(),
             notice: None,
             scroll: 0.,
@@ -207,6 +211,40 @@ impl Term {
                 json!({"x": at.0, "y": at.1, "delta_x": 0, "delta_y": step}),
             ));
         }
+    }
+
+    pub fn begin_selection(&mut self, index: usize, clicks: u32) {
+        self.selection_unit = match clicks {
+            0 | 1 => SelectionUnit::Cell,
+            2 => SelectionUnit::Word,
+            _ => SelectionUnit::Line,
+        };
+        self.selection_anchor = self
+            .frame
+            .as_ref()
+            .and_then(|f| f.selection_range(index, self.selection_unit));
+        // A focus click alone must not copy the character under the pointer.
+        self.selection = (self.selection_unit != SelectionUnit::Cell)
+            .then_some(self.selection_anchor)
+            .flatten();
+    }
+
+    pub fn extend_selection(&mut self, index: usize) {
+        let Some(anchor) = self.selection_anchor else {
+            return;
+        };
+        let Some(target) = self
+            .frame
+            .as_ref()
+            .and_then(|f| f.selection_range(index, self.selection_unit))
+        else {
+            return;
+        };
+        self.selection = if self.selection_unit == SelectionUnit::Cell && anchor == target {
+            None
+        } else {
+            Some((anchor.0.min(target.0), anchor.1.max(target.1)))
+        };
     }
 
     pub fn copy_text(&self) -> Option<String> {

@@ -16,6 +16,7 @@ use std::{
 };
 
 pub mod activity;
+pub mod clipboard;
 
 /// The label new tabs get. A tab that still has it shows its program's terminal title.
 pub const DEFAULT_TAB_LABEL: &str = "Shell";
@@ -142,6 +143,8 @@ pub struct HostModel {
     pub titles: HashMap<String, (String, Option<u64>)>,
     /// Program notifications not yet taken by the UI.
     pub notices: Vec<DesktopNotice>,
+    /// Latest terminal-initiated copy, consumed once by the foreground UI.
+    pub clipboard: Option<clipboard::ClipboardCopy>,
     /// Bumped whenever `activity` is dropped wholesale (on reconnect), so the UI starts its
     /// before-and-after comparison over instead of reading the gap as programs finishing.
     pub activity_epoch: u64,
@@ -338,7 +341,9 @@ impl ControlState {
         ) {
             floor = floor.max(self.list_seq);
         }
+        // Views contain state, not transient clipboard events.
         if event.name != "session_destroyed"
+            && !(event.name == "block_event" && clipboard::is_copy(&event.payload))
             && let Some(id) = &event.session_id
         {
             floor = floor.max(self.view_seq.get(id).copied().unwrap_or(0));
@@ -420,6 +425,9 @@ impl Shared {
         self.update(|m| {
             m.status = status.into();
             m.connected = connected;
+            if !connected {
+                m.clipboard = None;
+            }
             for terminal in m.terminals.values() {
                 terminal
                     .model
@@ -903,6 +911,31 @@ async fn handle_event(
             }
         }
         "block_event" => {
+            if clipboard::is_copy(&event.payload) {
+                if let (Some(session), Some(block)) = (
+                    event.session_id.as_deref(),
+                    event.payload["block_id"].as_str(),
+                ) {
+                    let accepts = clipboard::accepts(
+                        &shared.model.lock().expect("host model"),
+                        session,
+                        block,
+                    );
+                    if accepts {
+                        match clipboard::read(control, session, &event.payload).await {
+                            Ok(copy) => shared.update(|m| {
+                                if clipboard::accepts(m, &copy.session, &copy.block) {
+                                    m.clipboard = Some(copy);
+                                }
+                            }),
+                            Err(_) => shared.update(|m| {
+                                m.notice = Some("Copy failed: terminal clipboard text could not be read (limit 8 MiB).".into());
+                            }),
+                        }
+                    }
+                }
+                return Ok(());
+            }
             let (Some(id), Some((block, change))) = (
                 event.session_id.as_deref(),
                 activity::parse_block_event(&event.payload),

@@ -300,12 +300,8 @@ fn card(
                     }
                     let i = t.index(d.x, d.y, cell);
                     match d.phase {
-                        Phase::Down => t.selection = Some((i, i)),
-                        Phase::Move => {
-                            if let Some((a, _)) = t.selection {
-                                t.selection = Some((a, i));
-                            }
-                        }
+                        Phase::Down => t.begin_selection(i, d.clicks),
+                        Phase::Move => t.extend_selection(i),
                         Phase::Up => {}
                     }
                 })

@@ -110,6 +110,10 @@ A host's default shell (empty means the server user's login shell) is used for e
 
 These chords are reserved by the client and do not reach terminal programs; every other key goes to the focused pane. Interface zoom changes in 10% steps (70–150%), is saved as `ui_scale`, and is independent of the terminal font size. `Ctrl =` and the numpad `+`/`−` also work.
 
+Terminal-initiated clipboard writes are limited to 8 MiB and accepted only from the active session's focused pane while the app window is focused and no dialog is open. Background tabs cannot overwrite the clipboard. Clipboard read requests from terminal programs are not supported; the client never sends your clipboard to a remote program without a paste action.
+
+Double-click selects a word or shell path; triple-click selects a line.
+
 Other interactions: click the session/host identity for grouped navigation, or right-click it for the current session's actions; in the switcher, rename a session in place (right-click its row, F2 or the pencil; Enter saves, Esc cancels) or close it with its ×; right-click a pane for actions targeting that pane; drag dividers to resize splits and the sidebar's edge to resize it (double-click resets); double-click a tab to rename it. Closing a pane or tab asks for confirmation, with **Keep running** as the default. The active window takes size ownership of a terminal automatically. On the borderless window, the toolbar's empty space moves it (double-click maximizes; right-click requests the window manager's menu on Wayland).
 
 ## Development
@@ -129,6 +133,7 @@ The `scripts/` directory holds integration checks; each script's docstring lists
 - `revision8-check.py`: API revision negotiation and bootstrap tickets against a disposable server, optionally running the probes.
 - `connection-only-smoke.py`: a missing or stale socket must never execute the Rex CLI.
 - `x11-smoke.py`: real X11 events (forms, clipboard, pointer selection, key isolation).
+- `clipboard-x11.py`: isolated private-server acceptance check for this feature; see its docstring.
 - `rune-acceptance-x11.py`: window-corner, terminal-key and frame-CPU acceptance checks on X11.
 - `chrome-spike-x11.py` (with the `chrome_spike` example): borderless window chrome on X11.
 - `wayland-seat-smoke.py`: Wayland seat/resource selection on a multi-seat compositor.

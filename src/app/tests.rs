@@ -1569,3 +1569,58 @@ fn a_missing_rex_explains_itself_and_naming_reapplies_to_installed_agents() {
     assert!(preview.contains(&"--dry-run".to_owned()));
     std::fs::remove_file(&ws.settings_path).ok();
 }
+
+#[test]
+fn terminal_copies_reach_the_clipboard_once_and_only_in_the_foreground() {
+    use rex_linux::connection::clipboard::ClipboardCopy;
+    for (block, session, focused, modal, expected) in [
+        ("block:a", "s", true, false, "terminal copy 世界"),
+        ("block:b", "s", true, false, "sentinel"),
+        ("block:a", "other", true, false, "sentinel"),
+        ("block:a", "s", false, false, "sentinel"),
+        ("block:a", "s", true, true, "sentinel"),
+    ] {
+        let (mut ws, _rx) = tabbed_workspace("single");
+        ws.window_focused = focused;
+        ws.hosts[0].model.visible = true;
+        *ws.hosts[0].connection.model.lock().unwrap() = ws.hosts[0].model.clone();
+        let mut rt = runtime(ws);
+        let clipboard = rune::clipboard::memory();
+        clipboard.set_text("sentinel");
+        rt.use_clipboard(&clipboard);
+        rt.update(|s, tx| {
+            if modal {
+                s.perform(Intent::Settings, tx);
+            }
+            s.hosts[0].connection.model.lock().unwrap().clipboard = Some(ClipboardCopy {
+                session: session.into(),
+                block: block.into(),
+                text: "terminal copy 世界".into(),
+            });
+            s.sync(0, tx);
+        });
+        rt.frame(1. / 60.);
+        assert_eq!(
+            clipboard.text().as_deref().map(String::as_str),
+            Some(expected)
+        );
+        assert!(
+            rt.state.hosts[0]
+                .connection
+                .model
+                .lock()
+                .unwrap()
+                .clipboard
+                .is_none()
+        );
+        // A later wake must never replay a copy over something the user copied elsewhere.
+        clipboard.set_text("later copy");
+        rt.update(|s, tx| s.sync(0, tx));
+        rt.frame(1. / 60.);
+        assert_eq!(
+            clipboard.text().as_deref().map(String::as_str),
+            Some("later copy")
+        );
+        std::fs::remove_file(&rt.state.settings_path).ok();
+    }
+}

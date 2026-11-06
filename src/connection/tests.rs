@@ -599,3 +599,113 @@ async fn destroying_a_session_forgets_it_without_an_error() {
     drop(host);
     server.await.unwrap();
 }
+
+#[test]
+fn clipboard_events_are_not_replaced_by_a_view_snapshot() {
+    let state = ControlState {
+        bootstrap_seq: 10,
+        view_seq: HashMap::from([(SESSION.into(), 20)]),
+        ..Default::default()
+    };
+    for name in ["clipboard_written", "selection_copied"] {
+        let event = rexrs::Event {
+            seq: 19,
+            name: "block_event".into(),
+            session_id: Some(SESSION.into()),
+            payload: json!({"creator_name": activity::TERMINAL, "name": name,
+                "block_id": "block:copy", "payload": {"id": 1, "bytes": 4, "text": "copy"}}),
+        };
+        assert!(
+            state.includes(&event),
+            "a view contains no clipboard text: {name}"
+        );
+        assert!(!state.includes(&rexrs::Event { seq: 9, ..event }));
+    }
+}
+
+#[tokio::test]
+async fn clipboard_reads_pin_ids_and_count_utf8_bytes_for_both_copy_events() {
+    for (event, method) in [
+        (
+            "clipboard_written",
+            "com.superlogical.terminal.clipboard_read",
+        ),
+        ("selection_copied", "com.superlogical.terminal.blob_read"),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let mut ws = accept(&listener, "rex.control.v1").await;
+            welcome(&mut ws, 8).await;
+            let mut offset = 0;
+            for (index, data) in ["世", "界🦀\n"].into_iter().enumerate() {
+                let request = recv(&mut ws).await;
+                assert_eq!(request["method"], method);
+                assert_eq!(request["payload"]["session_id"], SESSION);
+                assert_eq!(request["payload"]["block_id"], "block:copy");
+                assert_eq!(
+                    request["payload"]["args"],
+                    json!({"id": 42, "offset": offset, "max_bytes": 49152})
+                );
+                offset += data.len();
+                send(
+                    &mut ws,
+                    json!({"type":"response", "id":request["id"], "payload":{
+                    "id":42,"data":data,"total":11,"eof": index == 1}}),
+                )
+                .await;
+            }
+            assert!(matches!(ws.next().await, Some(Ok(Message::Close(_)))));
+        });
+        let mut client = transport::control(&endpoint, None).await.unwrap();
+        let payload =
+            json!({"name": event, "block_id": "block:copy", "payload": {"id": 42, "bytes": 11}});
+        let copy = clipboard::read(&mut client, SESSION, &payload)
+            .await
+            .unwrap();
+        assert_eq!(copy.text, "世界🦀\n");
+        assert_eq!(copy.session, SESSION);
+        assert_eq!(copy.block, "block:copy");
+        client.close().await.unwrap();
+        server.await.unwrap();
+    }
+}
+
+#[tokio::test]
+async fn clipboard_reads_reject_stalled_truncated_changed_and_oversized_results() {
+    for part in [
+        json!({"id":42,"data":"","total":5,"eof":false}),
+        json!({"id":42,"data":"copy","total":5,"eof":true}),
+        json!({"id":43,"data":"copy","total":4,"eof":true}),
+        json!({"id":42,"data":"copy","total":3,"eof":true}),
+        json!({"id":42,"data":"","total":-1,"eof":true}),
+        json!({"id":42,"data":"","total":8 * 1024 * 1024 + 1,"eof":false}),
+    ] {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let endpoint = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let mut ws = accept(&listener, "rex.control.v1").await;
+            welcome(&mut ws, 8).await;
+            let request = recv(&mut ws).await;
+            send(
+                &mut ws,
+                json!({"type":"response","id":request["id"],"payload":part}),
+            )
+            .await;
+            assert!(matches!(ws.next().await, Some(Ok(Message::Close(_)))));
+        });
+        let mut client = transport::control(&endpoint, None).await.unwrap();
+        assert!(
+            clipboard::read(
+                &mut client,
+                SESSION,
+                &json!({"name":"clipboard_written",
+            "block_id":"block:copy","payload":{"id":42}})
+            )
+            .await
+            .is_err()
+        );
+        client.close().await.unwrap();
+        server.await.unwrap();
+    }
+}

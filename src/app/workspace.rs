@@ -315,14 +315,15 @@ impl Workspace {
     pub fn sync(&mut self, index: usize, tx: &mut Tx) {
         let id = self.hosts[index].id;
         let old_session = self.hosts[index].model.selected.clone();
-        let (model, notices) = {
+        let (model, notices, clipboard) = {
             let mut shared = self.hosts[index]
                 .connection
                 .model
                 .lock()
                 .expect("host model");
             let notices = std::mem::take(&mut shared.notices);
-            (shared.clone(), notices)
+            let clipboard = shared.clipboard.take();
+            (shared.clone(), notices, clipboard)
         };
         for (block, connection) in &model.terminals {
             let key = (id, block.clone());
@@ -356,6 +357,18 @@ impl Workspace {
             );
         }
         self.hosts[index].model = model;
+        if let Some(copy) = clipboard
+            && self.window_focused
+            && self.panel.is_none()
+            && index == self.active
+            && rex_linux::connection::clipboard::accepts(
+                &self.hosts[index].model,
+                &copy.session,
+                &copy.block,
+            )
+        {
+            tx.copy(copy.text);
+        }
         self.track_activity(index);
         self.deliver_program_notices(index, notices);
         if self
