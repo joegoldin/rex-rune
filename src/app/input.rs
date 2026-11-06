@@ -136,7 +136,7 @@ fn shortcut(s: &mut Workspace, ev: &KeyEvent, tx: &mut Tx) -> bool {
     } else if ctrl(ev) && m.alt && !m.shift && letter(ev, tx, 'd') {
         s.perform(Intent::Split("vertical"), tx);
     } else if m.alt
-        && !ctrl(ev)
+        && ctrl(ev)
         && !m.shift
         && matches!(ev.key, Key::Left | Key::Right | Key::Up | Key::Down)
     {

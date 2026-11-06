@@ -23,7 +23,7 @@ const SHORTCUTS: &[(&str, &[Shortcut])] = &[
             (&["Ctrl", ","], "Settings"),
             (&["Ctrl", "PageUp"], "Previous tab"),
             (&["Ctrl", "PageDown"], "Next tab"),
-            (&["Alt", "Arrows"], "Move pane focus"),
+            (&["Ctrl", "Alt", "Arrows"], "Move pane focus"),
             (&["Ctrl", "Shift", "B"], "Toggle sidebar"),
         ],
     ),
