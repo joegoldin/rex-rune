@@ -48,6 +48,7 @@ pub struct Notice {
 
 pub struct Workspace {
     pub logo: Option<rune::Image>,
+    pub images: Option<rune::ImageCache>,
     pub options: Options,
     pub settings: Settings,
     pub settings_path: PathBuf,
@@ -146,6 +147,7 @@ impl Workspace {
             .collapsed();
         let mut this = Self {
             logo: None,
+            images: None,
             options,
             settings,
             settings_path: path,
@@ -339,7 +341,9 @@ impl Workspace {
                         }
                     })
                     .expect("terminal wake thread");
-                self.terminals.insert(key, Term::new(connection.clone()));
+                let mut term = Term::new(connection.clone());
+                term.cache_images(self.images.as_ref());
+                self.terminals.insert(key, term);
             }
         }
         self.terminals
@@ -425,6 +429,7 @@ impl Workspace {
         let font = self.settings.font_size;
         if let Some(term) = self.terminals.get_mut(key) {
             term.refresh();
+            term.cache_images(self.images.as_ref());
             term.resize_if_owner(font, self.terminal_family);
         }
     }

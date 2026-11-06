@@ -182,6 +182,7 @@ pub fn run(mut options: Options) -> anyhow::Result<()> {
         setup: Some(|s: &mut Workspace, wake| {
             let images = rune::ImageCache::new(wake);
             s.logo = Some(images.load(APP_ICON));
+            s.images = Some(images);
         }),
         on_key: Some(input::on_key),
         poll: Some(poll),

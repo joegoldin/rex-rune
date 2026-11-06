@@ -6,11 +6,15 @@ use super::{
 };
 use rex_linux::{
     connection::{Command, Connection},
-    terminal::{Cell, Frame},
+    terminal::{
+        Cell, Frame,
+        graphics::{Image as TermImage, ImagePixels},
+    },
 };
 use rune::{El, Family, Mods, Span, TextStyle, el, memo, rich, text};
 use serde_json::json;
 use std::{
+    collections::HashMap,
     hash::{DefaultHasher, Hash, Hasher},
     sync::Arc,
 };
@@ -32,6 +36,7 @@ pub struct Term {
     pub mouse: Option<MouseGesture>,
     /// The last cell a motion report named, so moves within a cell send nothing.
     pub mouse_cell: Option<(u16, u16)>,
+    images: HashMap<usize, (Arc<ImagePixels>, rune::Image)>,
 }
 
 #[derive(Clone, Copy)]
@@ -87,6 +92,7 @@ impl Term {
             scroll: 0.,
             mouse: None,
             mouse_cell: None,
+            images: HashMap::new(),
         }
     }
 
@@ -98,6 +104,32 @@ impl Term {
             .expect("terminal model")
             .frame
             .clone();
+    }
+
+    pub fn cache_images(&mut self, cache: Option<&rune::ImageCache>) {
+        let (Some(cache), Some(frame)) = (cache, &self.frame) else {
+            self.images.clear();
+            return;
+        };
+        // Keeping the pixel Arc beside the texture prevents pointer reuse from making
+        // a fresh snapshot look like the previous image with the same protocol id.
+        for image in &frame.images {
+            let pixels = &image.pixels;
+            self.images
+                .entry(Arc::as_ptr(pixels) as usize)
+                .or_insert_with(|| {
+                    (
+                        Arc::clone(pixels),
+                        cache.rgba(pixels.width, pixels.height, Arc::clone(&pixels.rgba)),
+                    )
+                });
+        }
+        self.images.retain(|key, _| {
+            frame
+                .images
+                .iter()
+                .any(|image| Arc::as_ptr(&image.pixels) as usize == *key)
+        });
     }
 
     pub fn status(&self) -> Status {
@@ -412,38 +444,62 @@ impl Segment {
     }
 }
 
+#[derive(Clone, Copy, Debug, Hash, PartialEq)]
+enum RowPass {
+    All,
+    Background,
+    Text,
+}
+
+#[cfg(test)]
 fn row_el(cells: &[Cell], y: f32, frame_bg: u32, sel: Option<(usize, usize)>, m: &Metrics) -> El {
+    row_pass(cells, y, frame_bg, sel, m, RowPass::All)
+}
+
+fn row_pass(
+    cells: &[Cell],
+    y: f32,
+    frame_bg: u32,
+    sel: Option<(usize, usize)>,
+    m: &Metrics,
+    pass: RowPass,
+) -> El {
     let (cw, ch) = m.cell;
     // Memoized rows are flattened on their own, so each says again that it never animates:
     // otherwise a glyph run that leaves a changed row fades out over its replacement.
     let mut row = el().w_full().h(ch).absolute(0., y).instant_changes();
-    // Backgrounds, then selection, then glyphs.
-    let mut start = 0;
-    while start < cells.len() {
-        let bg = cells[start].bg;
-        let mut end = start + 1;
-        while end < cells.len() && cells[end].bg == bg {
-            end += 1;
+    // Images below text belong between the background and glyph passes.
+    if pass != RowPass::Text {
+        let mut start = 0;
+        while start < cells.len() {
+            let bg = cells[start].bg;
+            let mut end = start + 1;
+            while end < cells.len() && cells[end].bg == bg {
+                end += 1;
+            }
+            if bg != frame_bg {
+                row = row.child(
+                    el().absolute(start as f32 * cw, 0.)
+                        .size((end - start) as f32 * cw, ch)
+                        .fill(rgb(bg)),
+                );
+            }
+            start = end;
         }
-        if bg != frame_bg {
+        if let Some((a, b)) = sel {
             row = row.child(
-                el().absolute(start as f32 * cw, 0.)
-                    .size((end - start) as f32 * cw, ch)
-                    .fill(rgb(bg)),
+                el().absolute(a as f32 * cw, 0.)
+                    .size((b + 1 - a) as f32 * cw, ch)
+                    .fill(rgb(TERMINAL_SELECTION)),
             );
         }
-        start = end;
     }
-    if let Some((a, b)) = sel {
-        row = row.child(
-            el().absolute(a as f32 * cw, 0.)
-                .size((b + 1 - a) as f32 * cw, ch)
-                .fill(rgb(TERMINAL_SELECTION)),
-        );
+    if pass == RowPass::Background {
+        return row;
     }
     let mut segment: Option<Segment> = None;
     for (col, cell) in cells.iter().enumerate() {
-        if cell.spacer_tail {
+        if cell.spacer_tail || cell.text.starts_with('\u{10eeee}') {
             continue;
         }
         let style = RunStyle::of(cell, frame_bg);
@@ -476,6 +532,39 @@ fn row_el(cells: &[Cell], y: f32, frame_bg: u32, sel: Option<(usize, usize)>, m:
     row
 }
 
+fn image_el(
+    image: &TermImage,
+    texture: &rune::Image,
+    frame: &Frame,
+    m: &Metrics,
+    start: usize,
+) -> El {
+    let p = &image.placement;
+    let scale = [
+        m.cell.0 / frame.cell_pixels[0].max(1) as f32,
+        m.cell.1 / frame.cell_pixels[1].max(1) as f32,
+    ];
+    let width = p.size[0] as f32 * scale[0];
+    let height = p.size[1] as f32 * scale[1];
+    let sx = width / p.source[2] as f32;
+    let sy = height / p.source[3] as f32;
+    el().absolute(
+        p.cell[0] as f32 * m.cell.0 + p.offset[0] as f32 * scale[0],
+        (p.cell[1] as f32 - start as f32) * m.cell.1 + p.offset[1] as f32 * scale[1],
+    )
+    .size(width, height)
+    .clip_rounded(0.)
+    .instant_changes()
+    .child(
+        el().absolute(-(p.source[0] as f32) * sx, -(p.source[1] as f32) * sy)
+            .size(
+                image.pixels.width as f32 * sx,
+                image.pixels.height as f32 * sy,
+            )
+            .pixels(texture.pixels()),
+    )
+}
+
 pub struct GridLook {
     pub cursor: Option<CursorLook>,
     pub ime: bool,
@@ -491,22 +580,49 @@ pub fn grid(key: &str, term: &Term, m: &Metrics, look: GridLook) -> El {
     let start = frame.display_row_start(visible);
     let cols = frame.cols as usize;
     let selection = term.selection.map(|(a, b)| (a.min(b), a.max(b)));
-    let mut grid = el().w_full().h_full().instant_changes();
-    for (y, cells) in frame.cells.iter().enumerate().skip(start).take(visible) {
-        let sel = selection.and_then(|(a, b)| {
-            let (row0, row1) = (y * cols, y * cols + cols - 1);
-            (a <= row1 && b >= row0).then(|| (a.max(row0) - row0, b.min(row1) - row0))
-        });
-        let mut h = DefaultHasher::new();
-        for cell in cells {
-            hash_cell(cell, &mut h);
+    let rows = |mut grid: El, pass: RowPass| {
+        for (y, cells) in frame.cells.iter().enumerate().skip(start).take(visible) {
+            let sel = selection.and_then(|(a, b)| {
+                let (row0, row1) = (y * cols, y * cols + cols - 1);
+                (a <= row1 && b >= row0).then(|| (a.max(row0) - row0, b.min(row1) - row0))
+            });
+            let mut h = DefaultHasher::new();
+            for cell in cells {
+                hash_cell(cell, &mut h);
+            }
+            (sel, frame.bg, cw.to_bits(), ch.to_bits(), m.style, pass).hash(&mut h);
+            let top = (y - start) as f32 * ch;
+            let id = format!("{key}/r{}:{pass:?}", y - start);
+            grid = grid.child(memo(id, h.finish(), || {
+                row_pass(cells, top, frame.bg, sel, m, pass)
+            }));
         }
-        (sel, frame.bg, cw.to_bits(), ch.to_bits(), m.style).hash(&mut h);
-        let top = (y - start) as f32 * ch;
-        let id = format!("{key}/r{}", y - start);
-        grid = grid.child(memo(id, h.finish(), || {
-            row_el(cells, top, frame.bg, sel, m)
-        }));
+        grid
+    };
+    let images = |mut grid: El, layer: i32| {
+        for (index, image) in frame
+            .images
+            .iter()
+            .enumerate()
+            .filter(|(_, image)| image.placement.layer == layer)
+        {
+            if let Some((_, texture)) = term.images.get(&(Arc::as_ptr(&image.pixels) as usize)) {
+                grid = grid.child(
+                    image_el(image, texture, frame, m, start).key(format!("{key}/image:{index}")),
+                );
+            }
+        }
+        grid
+    };
+    let mut grid = el().w_full().h_full().clip_rounded(0.).instant_changes();
+    if frame.images.is_empty() {
+        grid = rows(grid, RowPass::All);
+    } else {
+        grid = images(grid, 0);
+        grid = rows(grid, RowPass::Background);
+        grid = images(grid, 1);
+        grid = rows(grid, RowPass::Text);
+        grid = images(grid, 2);
     }
     if let Some((x, y)) = frame.cursor
         && let Some(cursor_look) = look.cursor
@@ -529,7 +645,8 @@ pub fn grid(key: &str, term: &Term, m: &Metrics, look: GridLook) -> El {
         }
         grid = grid.child(cursor);
         if cursor_look == CursorLook::Block
-            && let Some(cell) = cell.filter(|c| !c.text.is_empty())
+            && let Some(cell) =
+                cell.filter(|c| !c.text.is_empty() && !c.text.starts_with('\u{10eeee}'))
         {
             let style = RunStyle {
                 fg: CARD,

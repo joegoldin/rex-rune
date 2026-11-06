@@ -7,6 +7,8 @@ use ghostty_vt::{
 };
 use serde_json::Value;
 
+pub mod graphics;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Part {
     Output(Vec<u8>),
@@ -64,6 +66,7 @@ pub struct TerminalStream {
     pub received: u64,
     pub snapshot_count: usize,
     pub exit_code: Option<i64>,
+    graphics_ready: bool,
 }
 impl TerminalStream {
     pub fn new(nonce: u64) -> Self {
@@ -74,15 +77,21 @@ impl TerminalStream {
             received: 0,
             snapshot_count: 0,
             exit_code: None,
+            graphics_ready: false,
         }
     }
     pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {
+        if !self.graphics_ready {
+            graphics::install_decoder()?;
+            self.graphics_ready = true;
+        }
         self.received += bytes.len() as u64;
         let tail;
         let bytes = if self.terminal.is_none() {
-            let Some((terminal, rest)) = self.snapshot.push(bytes)? else {
+            let Some((mut terminal, rest)) = self.snapshot.push(bytes)? else {
                 return Ok(());
             };
+            graphics::configure(&mut terminal)?;
             self.terminal = Some(terminal);
             self.snapshot_count += 1;
             tail = rest;
@@ -187,6 +196,8 @@ pub struct Frame {
     pub cursor_color: u32,
     /// The program asked for mouse reports (DEC 9, 1000, 1002 or 1003).
     pub mouse_tracking: bool,
+    pub images: Vec<graphics::Image>,
+    pub cell_pixels: [u32; 2],
 }
 
 impl Frame {
@@ -208,7 +219,11 @@ impl Frame {
             let mut line = String::new();
             for (col, cell) in cells.iter().enumerate() {
                 let index = row * cols + col;
-                if index >= start && index <= end && !cell.spacer_tail {
+                if index >= start
+                    && index <= end
+                    && !cell.spacer_tail
+                    && !cell.text.starts_with('\u{10eeee}')
+                {
                     line.push_str(if cell.text.is_empty() {
                         " "
                     } else {
@@ -225,6 +240,7 @@ pub struct Renderer {
     state: RenderState,
     rows: RowIterator,
     cells: CellIterator,
+    images: graphics::Images,
 }
 impl Renderer {
     pub fn new() -> Result<Self> {
@@ -232,6 +248,7 @@ impl Renderer {
             state: RenderState::new()?,
             rows: RowIterator::new()?,
             cells: CellIterator::new()?,
+            images: graphics::Images::new()?,
         })
     }
     pub fn frame(&mut self, terminal: &Terminal) -> Result<Frame> {
@@ -252,6 +269,11 @@ impl Renderer {
             },
             cursor_color: snapshot.cursor_color()?.map(rgb).unwrap_or(fg),
             mouse_tracking: terminal.is_mouse_tracking()?,
+            images: self.images.frame(terminal, &snapshot)?,
+            cell_pixels: [
+                terminal.width_px()? / u32::from(snapshot.cols()?).max(1),
+                terminal.height_px()? / u32::from(snapshot.rows()?).max(1),
+            ],
         };
         let mut rows = self.rows.update(&snapshot)?;
         while let Some(row) = rows.next() {

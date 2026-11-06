@@ -1,5 +1,5 @@
 use crate::transport::Socket;
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::{SinkExt, StreamExt};
 use ghostty_vt::{Terminal, snapshot};
@@ -132,8 +132,8 @@ impl SnapshotBuffer {
             self.scan = end;
             if tag == 6 {
                 let mut decoder = snapshot::Decoder::from_slice(&self.bytes[..end]);
-                decoder.ready()?;
-                while decoder.next_page()?.is_some() {}
+                decoder.ready().context("snapshot metadata decoding")?;
+                while decoder.next_record().context("snapshot record decoding")? {}
                 ensure!(
                     decoder.source_offset()? == Some(end),
                     "snapshot boundary mismatch"

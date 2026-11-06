@@ -16,7 +16,7 @@ base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 flume = "0.11"
 futures-util = { version = "0.3", features = ["sink"] }
-ghostty-vt = "=0.8.0"
+ghostty-vt = { version = "=0.8.0", features = ["png"] }
 rexrs = { git = "https://github.com/a10y/rexrs", rev = "780be3f9f0455c758273e57199af30bdaa145cf1", default-features = false, features = ["tokio"] }
 # Rune is pre-1.0 and pinned to a `dev` revision.
 rune = { git = "https://github.com/anomalyco/rune.git", rev = "100b7d93a442b7758f426dd0f63e2dd9cd72aff4", optional = true }
@@ -61,6 +61,10 @@ rune-staging = { path = "vendor/rune/crates/rune-staging" }
 # Revision-8 generated types and explicit negotiation range (vendor/rexrs/REX-LINUX.md).
 [patch."https://github.com/a10y/rexrs"]
 rexrs = { path = "vendor/rexrs" }
+
+# The pinned C image iterator exposed through a safe Rust render wrapper.
+[patch.crates-io]
+ghostty-vt = { path = "vendor/ghostty-vt" }
 
 [[example]]
 name = "chrome_spike"

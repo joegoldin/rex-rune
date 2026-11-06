@@ -1,0 +1,43 @@
+[package]
+name = "ghostty-vt"
+description = "Safe Rust API for libghostty-vt, the Ghostty terminal emulation library, built from Ghostty's official source tarball"
+version = "0.8.0+ghostty.1.4.0-main.83fb956"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+readme = "README.md"
+build = "build.rs"
+keywords = ["ghostty", "terminal", "vt", "libghostty"]
+categories = ["command-line-interface", "api-bindings"]
+include = [
+    "build.rs",
+    "src/**",
+    "resources/**",
+    "README.md",
+    "LICENSE",
+    "LICENSE-GHOSTTY",
+]
+
+[features]
+default = ["kitty-graphics"]
+kitty-graphics = []
+png = ["dep:png"]
+log = ["dep:log"]
+tracing = ["dep:tracing"]
+
+[dependencies]
+bitflags = "2"
+dirs = "6"
+ghostty-vt-sys.workspace = true
+int-enum = "1"
+log = { version = "0.4", optional = true }
+png = { version = "0.18", optional = true }
+tracing = { version = "0.1", optional = true }
+
+[dev-dependencies]
+crossterm = "0.29"
+portable-pty = "0.9"
+
+[package.metadata.docs.rs]
+all-features = true

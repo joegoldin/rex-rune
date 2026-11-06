@@ -17,6 +17,7 @@ It is written in Rust on [Rune](https://github.com/anomalyco/rune) (wgpu/winit, 
 - A single toolbar with session identity, tabs, commands and the window's own controls. A tab with one pane draws it edge to edge; splits are rounded pane cards. Tabs close from their right-click menu, a middle-click or `Ctrl Shift W`, always behind a confirmation. Host-grouped session navigation opens on demand, with an optional sidebar (Ctrl Shift B) that starts collapsed on every launch.
 - Searchable session switcher (`Ctrl K`) and command palette (`Ctrl Shift P`).
 - Snapshot restore, live output, input, bracketed paste, text selection and copy, local scrollback, and mouse/wheel reporting for terminal programs. Right-click always opens the pane menu; Shift+right-click sends the click to a program that tracks the mouse, and Shift with the left button selects text locally.
+- Inline Kitty graphics (RGB, RGBA and PNG), including image-bearing snapshots on reattach. Ghostty resolves placement, crop and paint order; the client caches decoded pixels and textures. Image storage is capped at 64 MiB per terminal. File, temporary-file and shared-memory image media are disabled: remote terminal output cannot read local files.
 - Reconnect handling: a transport failure pauses input on affected panes (input is never replayed) while parsed output survives reconnects and session changes.
 - Program activity on tabs. Programs that report their status with OSC 7501 (coding agents, for example) mark their tab with a word when they need you ("Needs approval", "Question", "Needs sign-in", "Needs input") or fail ("Error"), and with "Done" when they finish in a tab you weren't looking at. Each tab shows its focused pane's program icon (Claude Code, Codex, OpenCode, Pi, Vim, Git, Cargo, SSH; otherwise `>_`), and a tab you haven't renamed takes the title its program sets (OSC 0 or 2), as a terminal window would. Needs a server with API revision 8.
 - Desktop notifications through the freedesktop notification service when a tab you aren't looking at needs you, fails or finishes, and for notifications programs send themselves (OSC 9 and OSC 777). Clicking one raises the window and shows that tab. Each kind can be turned off in Settings → Notifications.
@@ -129,6 +130,7 @@ The `scripts/` directory holds integration checks; each script's docstring lists
 - `revision8-check.py`: API revision negotiation and bootstrap tickets against a disposable server, optionally running the probes.
 - `connection-only-smoke.py`: a missing or stale socket must never execute the Rex CLI.
 - `x11-smoke.py`: real X11 events (forms, clipboard, pointer selection, key isolation).
+- `kitty-graphics-x11.py`: private-server pixel checks for live RGBA, chunked PNG, image restoration after reattach and deletion.
 - `rune-acceptance-x11.py`: window-corner, terminal-key and frame-CPU acceptance checks on X11.
 - `chrome-spike-x11.py` (with the `chrome_spike` example): borderless window chrome on X11.
 - `wayland-seat-smoke.py`: Wayland seat/resource selection on a multi-seat compositor.
@@ -151,7 +153,7 @@ Each patch is meant to be dropped once the corresponding upstream release has eq
 
 Still needing hands-on validation: physical Wayland pointer gestures (move, edge resize, double-click, window menu), multi-seat Wayland desktops, actual IME input, and sustained daily use. On X11, winit has no window-menu request, so right-clicking the drag region does nothing there.
 
-Not implemented: terminal-content search, complete Kitty graphics, accessibility (AT-SPI) and distribution packages.
+Not implemented: terminal-content search, animated Kitty graphics, accessibility (AT-SPI) and distribution packages.
 
 ## Third-party software and assets
 
