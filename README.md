@@ -36,6 +36,8 @@ It is written in Rust on [Rune](https://github.com/anomalyco/rune) (wgpu/winit, 
 
 ## Build
 
+For Linux Nix packages and a pinned development toolchain, see [Nix packaging](docs/nix.md).
+
 ```sh
 cargo build --locked --release --bin rex-linux
 ```

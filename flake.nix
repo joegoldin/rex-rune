@@ -1,0 +1,67 @@
+{
+  description = "Rex Linux: native Rune client for existing Rex servers";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    zig = {
+      url = "github:mitchellh/zig-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+
+  outputs =
+    {
+      self,
+      nixpkgs,
+      zig,
+      ...
+    }:
+    let
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forSystems = nixpkgs.lib.genAttrs systems;
+      packageFor =
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+          compiler = zig.packages.${system}."0.17.0";
+        in
+        pkgs.callPackage ./nix/package.nix {
+          zig = compiler;
+        };
+    in
+    {
+      packages = forSystems (system: {
+        default = packageFor system;
+        rex-linux = self.packages.${system}.default;
+      });
+      checks = forSystems (system: {
+        rex-linux = self.packages.${system}.default;
+      });
+      devShells = forSystems (
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+          package = self.packages.${system}.default;
+        in
+        {
+          default = pkgs.mkShell {
+            inputsFrom = [ package ];
+            packages = [
+              pkgs.cargo
+              pkgs.rustc
+              pkgs.rustfmt
+              pkgs.clippy
+              pkgs.nixfmt
+              pkgs.statix
+              zig.packages.${system}."0.17.0"
+            ];
+            inherit (package) GHOSTTY_SOURCE_DIR GHOSTTY_ZIG_SYSTEM_DIR ZIG;
+          };
+        }
+      );
+      formatter = forSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
+    };
+}
