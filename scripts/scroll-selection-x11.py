@@ -104,6 +104,11 @@ try:
     desk.x("mousemove","--window",window,30,54)
     time.sleep(.8)
     desk.x("mouseup",1)
+    def extended_selection_visible():
+        # Wait for the native frame, not a fixed worker/renderer scheduling delay.
+        pixels=subprocess.check_output(["import","-window",window,"-crop","1x900+400+0","-depth","8","rgb:-"],env=desk.env,timeout=5)
+        return sum(pixels[i:i+3]==bytes([47,74,110]) for i in range(0,len(pixels),3))>=25*21
+    wait(extended_selection_visible,"autoscroll selection frame did not reach the UI")
     desk.key("ctrl+shift+c"); time.sleep(.2)
     dragged=clipboard()
     assert dragged.count("line-")>=27, "edge drag did not autoscroll: "+repr(dragged)
