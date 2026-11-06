@@ -63,7 +63,6 @@ pub(crate) fn view(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
         .scale(scale)
         .scale_motion(STILL)
         .fill(rgb(GROUND))
-        .on_key_up(input::on_key_up)
         .on_window_focus(|s: &mut Workspace, focused, _| s.window_focus(focused))
         .child(
             col()
@@ -84,6 +83,8 @@ pub(crate) fn view(s: &Workspace, cx: &mut Cx<Workspace>) -> El {
     root = root.child(open.unwrap_or_else(popups::overlay));
     let mut window = el()
         .key("window")
+        // Without a focused control, Rune delivers releases only to the outermost node.
+        .on_key_up(input::on_key_up)
         .w_full()
         .h_full()
         .fill(rgb(GROUND))

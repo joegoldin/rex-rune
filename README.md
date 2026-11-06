@@ -129,6 +129,7 @@ The `scripts/` directory holds integration checks; each script's docstring lists
 - `revision8-check.py`: API revision negotiation and bootstrap tickets against a disposable server, optionally running the probes.
 - `connection-only-smoke.py`: a missing or stale socket must never execute the Rex CLI.
 - `x11-smoke.py`: real X11 events (forms, clipboard, pointer selection, key isolation).
+- `key-release-x11.py`: native Kitty key-release regression on a private server and display.
 - `rune-acceptance-x11.py`: window-corner, terminal-key and frame-CPU acceptance checks on X11.
 - `chrome-spike-x11.py` (with the `chrome_spike` example): borderless window chrome on X11.
 - `wayland-seat-smoke.py`: Wayland seat/resource selection on a multi-seat compositor.
